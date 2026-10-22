@@ -197,42 +197,47 @@ Path alias: `@/*` → repo root.
 Specs live in `.claude/specs/<NN>-<slug>.md` and are created with
 `/create-spec <NN> <name>`. Build them in order.
 
+When a spec changes something described elsewhere in CLAUDE.md (e.g.
+Architecture, Auth flow, Installed but not yet wired up), update that section
+as part of the spec.
+
 | #  | Spec | Responsibility | Depends on | Status |
 |----|------|----------------|------------|--------|
-| 01 | session-token-refresh | `proxy.ts` refreshes an expired `access` cookie from the `refresh` cookie; on failure clears both cookies and redirects to `/login` | — | Implemented |
-| 02 | backend-api-client | Server-only HTTP client: backend base URL from an env var, `Authorization: JWT <access>` from the cookie, trailing-slash paths; replaces the hard-coded URLs in `app/login/actions.ts` and `proxy.ts` | — | Stub |
-| 03 | drf-error-handling | Normalize DRF errors (`{field: [msgs]}`, `non_field_errors`, `{detail}`) into one shape and map them onto react-hook-form field and form errors | 02 | Stub |
-| 04 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 02 | Stub |
-| 05 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 401/403/400) | — | Stub |
+| 01 | project-setup | Environment and repo setup: `.env` (local, git-ignored) and `.env.example` (committed, placeholder values and a comment per variable) for `API_BASE_URL` and `SITE_URL`; a validated, server-only env module that fails clearly on missing values; `.gitignore` covering env files (with an exception for `.env.example`), build output and editor/OS files; `package.json` name `science-nest`; a README with setup and run steps; removal of unused scaffold leftovers (`public/file.svg`, `globe.svg`, `window.svg`, boilerplate README text). Doesn't replace the hard-coded backend URLs (03), or touch fonts, `app/globals.css`, the favicon (08), root layout metadata (10), or `app/page.tsx` and its `next.svg`/`vercel.svg` (18) | — | Stub |
+| 02 | session-token-refresh | `proxy.ts` refreshes an expired `access` cookie from the `refresh` cookie; on failure clears both cookies and redirects to `/login` | — | Implemented |
+| 03 | backend-api-client | Server-only HTTP client: backend base URL from the env module (spec 01), `Authorization: JWT <access>` from the cookie, trailing-slash paths; replaces the hard-coded URLs in `app/login/actions.ts` and `proxy.ts` | 01 | Stub |
+| 04 | drf-error-handling | Normalize DRF errors (`{field: [msgs]}`, `non_field_errors`, `{detail}`) into one shape and map them onto react-hook-form field and form errors | 03 | Stub |
+| 05 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 03 | Stub |
 | 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Stub |
-| 07 | route-protection | Proxy redirects: guests on student routes → `/login` (with return path); logged-in users on `/login` and `/register` → `/dashboard` | 01 | Stub |
-| 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match. | — | Stub |
-| 09 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Dashboard, Account), footer, site-wide title template | 08 | Stub |
-| 10 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style | 08, 09 | Stub |
-| 11 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 09 | Stub |
-| 12 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 03, 07, 09 | Stub |
-| 13 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 03, 07, 09, 12 | Stub |
-| 14 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 04, 05 | Stub |
-| 15 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices | 02, 09 | Stub |
-| 16 | subject-detail-page | Public `/subjects/[slug]` page rendering `GET /subjects/{slug}/` (description, levels, prices, booking CTAs); unknown slug → not-found | 10, 15 | Stub |
-| 17 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, CTAs to register and book a trial | 15 | Stub |
-| 18 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 15, 16, 17 | Stub |
-| 19 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 14 | Stub |
-| 20 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book | 05, 06, 14 | Stub |
-| 21 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 04, 05, 06 | Stub |
-| 22 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 21 | Stub |
-| 23 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 21 | Stub |
-| 24 | book-weekly-class | `/classes/new` form: subject, level (filtered to the subject), duration 40/60, slot; `POST /classes/`; handles "already booked" by refetching availability; invalidates schedule and availability | 03, 20, 22 | Stub |
-| 25 | edit-weekly-class | `/classes/[id]/edit`: load `GET /classes/{id}/`, prefill the form, keep its own slot selectable, save with an update request | 24 | Stub |
-| 26 | delete-weekly-class | Delete action with confirmation from the dashboard: `DELETE /classes/{id}/`, then invalidate schedule and availability | 20 | Stub |
-| 27 | book-trial-lesson | `/trial-lesson/new` form: subject, level, slot; `POST /trial-lessons/`; only offered when the student has no trial lesson; invalidates schedule and availability | 03, 20, 23 | Stub |
-| 28 | edit-trial-lesson | Edit page for the trial lesson: prefill, keep its own slot selectable, save with an update request | 27 | Stub |
-| 29 | cancel-trial-lesson | Cancel action with confirmation: `DELETE /trial-lessons/{id}/`, then invalidate schedule and availability | 20 | Stub |
-| 30 | trial-lesson-locked-state | Locked display for a past or completed trial lesson: hide edit and cancel, and show the backend's 403 message if an edit or delete is refused | 28, 29 | Stub |
+| 07 | route-protection | Proxy redirects: guests on student routes → `/login` (with return path); logged-in users on `/login` and `/register` → `/dashboard` | 02 | Stub |
+| 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match; apply the `.dark` class from the saved choice (light, dark or system, default system) via `next-themes`, following the system preference live, with no flash of the wrong theme on load. The toggle control is in 10 | — | Stub |
+| 09 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 401/403/400); also mount the single app-wide toaster (shadcn Sonner) styled with the success, warning and destructive tokens and following the active theme. Specs that show toasts use this toaster and never add their own | 08 | Stub |
+| 10 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Dashboard, Account), a light/dark/system theme toggle in the header, footer, site-wide title template | 08 | Stub |
+| 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style | 08, 10 | Stub |
+| 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Stub |
+| 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Stub |
+| 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Stub |
+| 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Stub |
+| 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices | 03, 10 | Stub |
+| 17 | subject-detail-page | Public `/subjects/[slug]` page rendering `GET /subjects/{slug}/` (description, levels, prices, booking CTAs); unknown slug → not-found | 11, 16 | Stub |
+| 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, CTAs to register and book a trial | 16 | Stub |
+| 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Stub |
+| 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Stub |
+| 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book | 06, 09, 15 | Stub |
+| 22 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 05, 06, 09 | Stub |
+| 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Stub |
+| 24 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 22 | Stub |
+| 25 | book-weekly-class | `/classes/new` form: subject, level (filtered to the subject), duration 40/60, slot; `POST /classes/`; handles "already booked" by refetching availability; invalidates schedule and availability | 04, 09, 21, 23 | Stub |
+| 26 | edit-weekly-class | `/classes/[id]/edit`: load `GET /classes/{id}/`, prefill the form, keep its own slot selectable, save with an update request | 09, 25 | Stub |
+| 27 | delete-weekly-class | Delete action with confirmation from the dashboard: `DELETE /classes/{id}/`, then invalidate schedule and availability | 09, 21 | Stub |
+| 28 | book-trial-lesson | `/trial-lesson/new` form: subject, level, slot; `POST /trial-lessons/`; only offered when the student has no trial lesson; invalidates schedule and availability | 04, 09, 21, 24 | Stub |
+| 29 | edit-trial-lesson | Edit page for the trial lesson: prefill, keep its own slot selectable, save with an update request | 09, 28 | Stub |
+| 30 | cancel-trial-lesson | Cancel action with confirmation: `DELETE /trial-lessons/{id}/`, then invalidate schedule and availability | 09, 21 | Stub |
+| 31 | trial-lesson-locked-state | Locked display for a past or completed trial lesson: hide edit and cancel, and show the backend's 403 message if an edit or delete is refused | 09, 29, 30 | Stub |
 
 ### Open questions
-- Trial lesson response fields aren't documented: is there an `id`, `ends_at`, or a completed flag? Without a completed flag, the frontend can only detect "locked" from a past `starts_at` or a 403 (affects 20, 28–30).
-- `/schedule/` item shapes aren't documented: the name of each weekly class's price field, and the format of `weekly_cost` (number or string) (affects 20).
-- Registration: does Djoser require email activation? Should the app log the student in automatically after registering, or send them to `/login`? (affects 13)
-- Does the 5-minute `access` cookie `maxAge` match SimpleJWT's `ACCESS_TOKEN_LIFETIME`? Does the 1-day `refresh` cookie match the refresh token lifetime? (affects 01)
-- Should guests see "Book" buttons on public pages that send them to `/login`, or should those buttons only appear for students? (affects 16, 17)
+- Trial lesson response fields aren't documented: is there an `id`, `ends_at`, or a completed flag? Without a completed flag, the frontend can only detect "locked" from a past `starts_at` or a 403 (affects 21, 29–31).
+- `/schedule/` item shapes aren't documented: the name of each weekly class's price field, and the format of `weekly_cost` (number or string) (affects 21).
+- Registration: does Djoser require email activation? Should the app log the student in automatically after registering, or send them to `/login`? (affects 14)
+- Does the 5-minute `access` cookie `maxAge` match SimpleJWT's `ACCESS_TOKEN_LIFETIME`? Does the 1-day `refresh` cookie match the refresh token lifetime? (affects 02)
+- Should guests see "Book" buttons on public pages that send them to `/login`, or should those buttons only appear for students? (affects 17, 18)

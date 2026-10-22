@@ -40,6 +40,11 @@ For every item:
 Also check that nothing listed under "Out of scope" was built. If something
 was, report it as a scope issue.
 
+Check the implementation against CLAUDE.md. If it contradicts anything there
+(Design, Backend API, Architecture, Auth flow, Installed but not yet wired up,
+or the roadmap row), including a section the spec should have updated but
+didn't, report it as a failure with the CLAUDE.md section and file:line.
+
 ## 4. Run the checks
 
 Run these in this order and record pass or fail for each:
@@ -69,7 +74,8 @@ changes app code or any other part of CLAUDE.md.
 - After each failed item, add one line with the reason, e.g.
   ` — ❌ <short reason, file:line>`. On re-runs, remove an old ❌ note when
   that item now passes.
-- **If every criterion passed and there are no scope issues:** set
+- **If every criterion passed and there are no scope issues or CLAUDE.md
+  contradictions:** set
   `**Status:** Done` and add `- **Completed:** <YYYY-MM-DD>` (today's date)
   under the Created line, or update it if it's already there.
 - **Otherwise:** don't change the Status. Never set Done when anything
@@ -84,8 +90,8 @@ changes app code or any other part of CLAUDE.md.
   - If the row is already `Implemented`, leave it.
   - If there's no row for that number, or its slug doesn't match the spec
     file name, don't edit CLAUDE.md. Report the mismatch.
-- **If the spec isn't Done** (any criterion failed or a scope issue was
-  found), don't touch the roadmap. If the row is marked `Implemented` but the
+- **If the spec isn't Done** (any criterion failed, or a scope issue or
+  CLAUDE.md contradiction was found), don't touch the roadmap. If the row is marked `Implemented` but the
   spec now fails, report the mismatch without changing it.
 
 ## 8. Report back
@@ -94,7 +100,8 @@ Reply briefly in chat with:
 
 - the spec file and its final Status
 - criteria passed / total
-- a table of failed criteria and scope issues: criterion, reason, file
+- a table of failed criteria, scope issues and CLAUDE.md contradictions:
+  criterion, reason, file
 - the results of the tsc, lint and build checks
 - the criteria marked "check in browser", as a short list for the user to try
 - one line saying whether the roadmap row was updated, already Implemented,
