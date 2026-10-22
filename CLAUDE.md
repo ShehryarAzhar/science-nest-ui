@@ -108,9 +108,13 @@ an error.
 
 ## Design
 
-Every page and component follows this section. Don't introduce new colours,
-fonts or radius values; use the theme tokens. The frontend-design skill may
-shape layout and details within these rules, but must not change the direction.
+Every page and component follows this section. For any design or UI work
+(new pages, components, layouts, styling, empty, loading and error states,
+responsive behaviour), use the frontend-design skill from the installed
+frontend-design plugin before writing the UI code. The skill shapes layout,
+composition and details, but always within these rules: it must not change
+the direction, and must not add new colours, fonts, radius values or
+motion beyond what's defined here. Use the theme tokens.
 
 **Direction: "Stained slide."** Histology colours, hematoxylin violet and eosin
 pink, on calm cool-white "glass". Exact, academic and trustworthy rather than
