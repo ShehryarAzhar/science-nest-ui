@@ -88,7 +88,7 @@ Use the roadmap row when writing the spec:
   section expands it into specific items, but never goes beyond it.
 - **Out of scope:** include the responsibilities of nearby roadmap specs
   that a developer might be tempted to build here, each with its spec number
-  (e.g. "Editing a weekly class: spec 24").
+  (e.g. "Editing a weekly class: spec <NN>").
 - **Depends on:** use the row's Depends on numbers, written as the spec file
   names (`<NN>-<slug>.md`) for specs that already exist in `.claude/specs/`,
   and as `<NN>-<slug> (not created yet)` for ones that don't.
