@@ -111,11 +111,11 @@ Layout, key components, shadcn/ui components to use, and mobile behavior.
 No tutor name or photo anywhere.
 
 ## Acceptance criteria
-A numbered checklist, each item checkable by hand in the browser. The last
-items are always:
-- `npx tsc --noEmit` passes
-- `npm run lint` passes
-- `npm run build` passes
+A checklist using `- [ ]` items, one criterion per line, each checkable by
+hand in the browser. The last items are always:
+- [ ] `npx tsc --noEmit` passes
+- [ ] `npm run lint` passes
+- [ ] `npm run build` passes
 
 ## Conflicts
 Anything in CLAUDE.md or the current code that conflicts with this spec, or
