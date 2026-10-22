@@ -34,6 +34,9 @@ classes. Teacher and admin work happens only in the Django admin, so this
 frontend has no admin or teacher pages. Do not show the tutor's name or photo
 anywhere in the app.
 
+Tutor credentials (fine to show in the UI): MPhil in Biochemistry and Molecular
+Biology, 8+ years of teaching experience.
+
 Subjects: Biology and Chemistry (O Level, A Level), Physics (O Level),
 Science (All Levels 1–O), Biochemistry and Molecular Biology (University).
 
