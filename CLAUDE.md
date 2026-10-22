@@ -131,3 +131,47 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
 TanStack Query, Zustand, react-hook-form + zod (`@hookform/resolvers`), and axios are dependencies intended for data fetching, client state, and forms. There are no providers, stores, or form schemas yet — when adding the first one, a `QueryClientProvider` will need a client component wrapper in `app/layout.tsx`.
 
 Path alias: `@/*` → repo root.
+
+## Spec roadmap
+
+Specs live in `.claude/specs/<NN>-<slug>.md` and are created with
+`/create-spec <NN> <name>`. Build them in order.
+
+| #  | Spec | Responsibility | Depends on | Status |
+|----|------|----------------|------------|--------|
+| 01 | session-token-refresh | `proxy.ts` refreshes an expired `access` cookie from the `refresh` cookie; on failure clears both cookies and redirects to `/login` | — | Implemented |
+| 02 | backend-api-client | Server-only HTTP client: backend base URL from an env var, `Authorization: JWT <access>` from the cookie, trailing-slash paths; replaces the hard-coded URLs in `app/login/actions.ts` and `proxy.ts` | — | Stub |
+| 03 | drf-error-handling | Normalize DRF errors (`{field: [msgs]}`, `non_field_errors`, `{detail}`) into one shape and map them onto react-hook-form field and form errors | 02 | Stub |
+| 04 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 02 | Stub |
+| 05 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 401/403/400) | — | Stub |
+| 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Stub |
+| 07 | route-protection | Proxy redirects: guests on student routes → `/login` (with return path); logged-in users on `/login` and `/register` → `/dashboard` | 01 | Stub |
+| 08 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Dashboard, Account), footer, site-wide title template | — | Stub |
+| 09 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style | 08 | Stub |
+| 10 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 08 | Stub |
+| 11 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 03, 07, 08 | Stub |
+| 12 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 03, 07, 08, 11 | Stub |
+| 13 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 04, 05 | Stub |
+| 14 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices | 02, 08 | Stub |
+| 15 | subject-detail-page | Public `/subjects/[slug]` page rendering `GET /subjects/{slug}/` (description, levels, prices, booking CTAs); unknown slug → not-found | 09, 14 | Stub |
+| 16 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, CTAs to register and book a trial | 14 | Stub |
+| 17 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 14, 15, 16 | Stub |
+| 18 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 13 | Stub |
+| 19 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book | 05, 06, 13 | Stub |
+| 20 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 04, 05, 06 | Stub |
+| 21 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 20 | Stub |
+| 22 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 20 | Stub |
+| 23 | book-weekly-class | `/classes/new` form: subject, level (filtered to the subject), duration 40/60, slot; `POST /classes/`; handles "already booked" by refetching availability; invalidates schedule and availability | 03, 19, 21 | Stub |
+| 24 | edit-weekly-class | `/classes/[id]/edit`: load `GET /classes/{id}/`, prefill the form, keep its own slot selectable, save with an update request | 23 | Stub |
+| 25 | delete-weekly-class | Delete action with confirmation from the dashboard: `DELETE /classes/{id}/`, then invalidate schedule and availability | 19 | Stub |
+| 26 | book-trial-lesson | `/trial-lesson/new` form: subject, level, slot; `POST /trial-lessons/`; only offered when the student has no trial lesson; invalidates schedule and availability | 03, 19, 22 | Stub |
+| 27 | edit-trial-lesson | Edit page for the trial lesson: prefill, keep its own slot selectable, save with an update request | 26 | Stub |
+| 28 | cancel-trial-lesson | Cancel action with confirmation: `DELETE /trial-lessons/{id}/`, then invalidate schedule and availability | 19 | Stub |
+| 29 | trial-lesson-locked-state | Locked display for a past or completed trial lesson: hide edit and cancel, and show the backend's 403 message if an edit or delete is refused | 27, 28 | Stub |
+
+### Open questions
+- Trial lesson response fields aren't documented: is there an `id`, `ends_at`, or a completed flag? Without a completed flag, the frontend can only detect "locked" from a past `starts_at` or a 403 (affects 19, 27–29).
+- `/schedule/` item shapes aren't documented: the name of each weekly class's price field, and the format of `weekly_cost` (number or string) (affects 19).
+- Registration: does Djoser require email activation? Should the app log the student in automatically after registering, or send them to `/login`? (affects 12)
+- Does the 5-minute `access` cookie `maxAge` match SimpleJWT's `ACCESS_TOKEN_LIFETIME`? Does the 1-day `refresh` cookie match the refresh token lifetime? (affects 01)
+- Should guests see "Book" buttons on public pages that send them to `/login`, or should those buttons only appear for students? (affects 15, 16)

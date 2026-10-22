@@ -1,7 +1,7 @@
 ---
 description: Create a numbered feature spec in .claude/specs/
 argument-hint: <number> <spec name>
-allowed-tools: Read, Glob, Grep, Write, Bash(ls:*), Bash(mkdir:*)
+allowed-tools: Read, Glob, Grep, Write, Edit, Bash(ls:*), Bash(mkdir:*)
 ---
 
 Create a feature spec from these arguments: `$ARGUMENTS`
@@ -27,7 +27,28 @@ Examples:
    user which file it is and ask whether to overwrite it or pick another
    number. Never overwrite without their confirmation.
 
-## 2. Gather context before writing
+## 2. Check the roadmap
+
+Use the "Spec roadmap" table in `CLAUDE.md`.
+
+1. Find the roadmap row whose `#` matches the spec number.
+2. **If there's no row for that number**, stop. Say that spec <NN> isn't in
+   the roadmap and ask the user whether to add it to the roadmap first or use
+   another number. Don't create the spec.
+3. **If the slug from the arguments doesn't match the row's slug**, stop.
+   Show both and ask the user which one to use. If they pick the roadmap's
+   slug, use it for the file name. If they pick theirs, update the slug in
+   the roadmap row to match.
+4. **If the row's Status is Implemented**, stop. Tell the user the feature is
+   already marked implemented and ask whether to create a spec anyway.
+5. **If any spec listed in the row's "Depends on" isn't Implemented**, warn
+   the user with the list, then carry on. Don't stop for this.
+
+Creating a spec doesn't change the roadmap. The row stays Stub until
+`/verify-spec` marks it Implemented. The only roadmap edit this command may
+make is the slug change in step 3, and only with the user's confirmation.
+
+## 3. Gather context before writing
 
 1. Read `CLAUDE.md` (and `AGENTS.md`) for the app description, the backend
    API, the auth flow, the stack, the Next.js 16 caveats, and the no-tests
@@ -43,7 +64,7 @@ Examples:
    user up to 5 short questions first, then write the spec. Don't guess on
    scope.
 
-## 3. Rules for the spec
+## 4. Rules for the spec
 
 - The spec describes **what** to build and **why**: behavior, scope, the
   backend contract and acceptance criteria. Don't write an implementation
@@ -61,7 +82,20 @@ Examples:
   around it.
 - Use today's date for **Created**.
 
-## 4. Spec template
+Use the roadmap row when writing the spec:
+
+- **Scope:** the row's Responsibility is the spec's boundary. The Scope
+  section expands it into specific items, but never goes beyond it.
+- **Out of scope:** include the responsibilities of nearby roadmap specs
+  that a developer might be tempted to build here, each with its spec number
+  (e.g. "Editing a weekly class: spec 24").
+- **Depends on:** use the row's Depends on numbers, written as the spec file
+  names (`<NN>-<slug>.md`) for specs that already exist in `.claude/specs/`,
+  and as `<NN>-<slug> (not created yet)` for ones that don't.
+- **Conflicts:** if the row's responsibility conflicts with the current code
+  or another roadmap row, record it here.
+
+## 5. Spec template
 
 Write the file in exactly this structure:
 
@@ -125,7 +159,7 @@ Anything in CLAUDE.md or the current code that conflicts with this spec, or
 Decisions still needed from the user, or "None".
 ```
 
-## 5. Reply
+## 6. Reply
 
 When done, reply with only the file path and a 2–3 line summary. Don't repeat
 the spec in chat.

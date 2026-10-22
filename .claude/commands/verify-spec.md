@@ -54,8 +54,9 @@ criteria and are ticked from these results.
 
 ## 5. Do not change any app code
 
-Don't fix failures and don't refactor. The only file this command edits is
-the spec.
+Don't fix failures and don't refactor. The only files this command edits are
+the spec and that spec's Status cell in the CLAUDE.md roadmap. It never
+changes app code or any other part of CLAUDE.md.
 
 ## 6. Update the spec
 
@@ -75,7 +76,19 @@ the spec.
   failed.
 - Don't edit any other part of the spec.
 
-## 7. Report back
+## 7. Update the roadmap
+
+- **If the spec is now Done**, find the row in the CLAUDE.md "Spec roadmap"
+  table whose `#` matches the spec number and change only its Status cell to
+  `Implemented`. Use Edit on that single row.
+  - If the row is already `Implemented`, leave it.
+  - If there's no row for that number, or its slug doesn't match the spec
+    file name, don't edit CLAUDE.md. Report the mismatch.
+- **If the spec isn't Done** (any criterion failed or a scope issue was
+  found), don't touch the roadmap. If the row is marked `Implemented` but the
+  spec now fails, report the mismatch without changing it.
+
+## 8. Report back
 
 Reply briefly in chat with:
 
@@ -84,5 +97,7 @@ Reply briefly in chat with:
 - a table of failed criteria and scope issues: criterion, reason, file
 - the results of the tsc, lint and build checks
 - the criteria marked "check in browser", as a short list for the user to try
+- one line saying whether the roadmap row was updated, already Implemented,
+  or left alone (and why)
 
 Don't repeat the whole spec.
