@@ -38,7 +38,8 @@ Tutor credentials (fine to show in the UI): MPhil in Biochemistry and Molecular
 Biology, 8+ years of teaching experience.
 
 Subjects: Biology and Chemistry (O Level, A Level), Physics (O Level),
-Science (All Levels 1–O), Biochemistry and Molecular Biology (University).
+Science (All Levels 1–O), Biochemistry (University), Molecular Biology
+(University).
 
 Pages: home, subjects list and detail (public), register, login, student
 dashboard (schedule and weekly cost), book or edit a weekly class, book, edit
@@ -170,6 +171,51 @@ pickers or the schedule.
   repeating block. Show it as its own eosin-accented "Free trial" card above
   the grid, with its full local date and time (weekday, date, hour).
 
+### Images
+
+Transparent WebP illustrations in `public/images/`, only where listed below.
+Never in forms, slot pickers or the schedule. No people or faces.
+
+**Style:** flat textbook-plate illustration in H&E stain colours: eosin
+`#C2295E` outlines (visible on both themes), fills `#A89CF5` / `#FF7AA8`,
+small `#3D2F8F` details, no black, white or gradients. If one fails in dark
+mode, add `<name>-dark.webp` for that image only.
+
+| File | Used in (spec) | Min size | Alt |
+|---|---|---|---|
+| `hero-specimen.webp` | Home hero (18) | 1120×1120 | "Illustration of stained cells seen through a microscope" |
+| `subjects/<slug>.webp` | Subject cards and detail body (16, 17, 18) | 480×480 | `""` |
+| `empty-schedule.webp` | Dashboard empty state (21) | 640×478 | `""` |
+| `not-found.webp` | `not-found.tsx` (11) | 640×640 | `""` |
+
+Subject slugs: `biology`, `chemistry`, `physics`, `science`, `biochemistry`,
+`molecular-biology`. The path is built from the slug, with no mapping table.
+
+**Google Flow prompt** = this opening + the subject below + this ending.
+- Opening: "Flat vector scientific illustration in the style of a modern
+  textbook plate, coloured like an H&E-stained microscope slide: uniform
+  medium-weight rounded outlines in eosin pink #C2295E, fills in soft violet
+  #A89CF5 and light pink #FF7AA8, small deep violet #3D2F8F details, no black,
+  no white areas, no gradients, flat even lighting, moderate detail."
+- Ending: "isolated subject, centred, plain solid flat white background, no
+  shadow on the ground, no text, no watermark"
+- Subjects: hero, tightly packed hexagonal stained cells in a circular
+  microscope field. biology, an animal cell with nucleus and mitochondria.
+  chemistry, a conical flask with a benzene ring rising from it. physics, a
+  convex lens focusing light rays. science, a leaf, a beaker and a magnet.
+  biochemistry, an enzyme binding a substrate (lock and key). molecular-biology,
+  a DNA helix partly unzipping beside an mRNA strand. empty-schedule, an empty
+  slide and petri dish. not-found, a magnifying glass over an empty slide.
+
+**Rules:**
+- One shared `SpecimenImage` client component (created in spec 11) wraps
+  `next/image` with string paths, never static imports.
+- A missing image never shows a broken icon. It stays hidden until it loads.
+  If it fails, the hero shows only the hex lattice, a subject image shows the
+  hex logo mark, and the other images show nothing.
+- Hero: `loading="eager"` + `fetchPriority="high"` (`priority` is deprecated
+  in Next 16). Everything else lazy-loads.
+
 ## Architecture
 
 App Router frontend for a separate **Django backend at `http://127.0.0.1:8000`** (Djoser/SimpleJWT-style endpoints: `/auth/jwt/create/`, `/auth/jwt/refresh/`). The backend URL is currently hard-coded in `app/login/actions.ts` and `proxy.ts`.
@@ -217,17 +263,17 @@ as part of the spec.
 | 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match; apply the `.dark` class from the saved choice (light, dark or system, default system) via `next-themes`, following the system preference live, with no flash of the wrong theme on load. The toggle control is in 10 | — | Stub |
 | 09 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 401/403/400); also mount the single app-wide toaster (shadcn Sonner) styled with the success, warning and destructive tokens and following the active theme. Specs that show toasts use this toaster and never add their own | 08 | Stub |
 | 10 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Dashboard, Account), a light/dark/system theme toggle in the header, footer, site-wide title template | 08 | Stub |
-| 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style | 08, 10 | Stub |
+| 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style; images: see Design › Images | 08, 10 | Stub |
 | 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Stub |
 | 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Stub |
 | 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Stub |
 | 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Stub |
-| 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices | 03, 10 | Stub |
-| 17 | subject-detail-page | Public `/subjects/[slug]` page rendering `GET /subjects/{slug}/` (description, levels, prices, booking CTAs); unknown slug → not-found | 11, 16 | Stub |
-| 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, CTAs to register and book a trial | 16 | Stub |
+| 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices; images: see Design › Images | 03, 10 | Stub |
+| 17 | subject-detail-page | Public `/subjects/[slug]` page rendering `GET /subjects/{slug}/` (description, levels, prices, booking CTAs); unknown slug → not-found; images: see Design › Images | 11, 16 | Stub |
+| 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, CTAs to register and book a trial; images: see Design › Images | 16 | Stub |
 | 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Stub |
 | 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Stub |
-| 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book | 06, 09, 15 | Stub |
+| 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book; images: see Design › Images | 06, 09, 15 | Stub |
 | 22 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 05, 06, 09 | Stub |
 | 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Stub |
 | 24 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 22 | Stub |
