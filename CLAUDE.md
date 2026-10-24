@@ -53,6 +53,10 @@ Django REST Framework + MySQL, auth via Djoser + SimpleJWT.
 - Auth header is `Authorization: JWT <token>` (not Bearer).
 - Every path ends with a trailing slash.
 - Every date and time is UTC. The frontend converts to the student's local time.
+  A weekly UTC weekday + hour is converted using the offset in force at its
+  next real occurrence (the first one at or after "now" or the given reference
+  instant), never the offset at the reference instant itself, so a slot just
+  after a daylight-saving change shows its correct local time.
 - Errors use DRF format: `{field: [msgs]}`, `non_field_errors`, or `{detail}`.
 
 **Auth (`/auth/`)**
@@ -279,6 +283,15 @@ Every form shows backend errors through one shape, `NormalizedError` (`kind`, `s
 
 A 401 from `POST /auth/jwt/create/` always shows "Invalid username or password.", never SimpleJWT's `detail`.
 
+### Time zones
+
+`lib/time-zone.ts` (shared, pure) holds every UTC ↔ local conversion and time display format. Callers always pass the IANA time zone and "now" (or a reference instant); the helpers never read either themselves. `getBrowserTimeZone()` is for client code only.
+
+- Weekly slots (`day` + `"HH:00:00"`) follow the next-occurrence rule (see Backend API). `weeklySlotGrid()` lists all 168 UTC slots with local labels; pickers and the schedule build on it and on `trialSlotList()` (future full UTC hours grouped by local date), never on local input, so half-hour zones like `Asia/Kolkata` still get every slot.
+- Local → UTC (`localToWeeklySlot()`, `localToStartsAt()`) returns a result with `kind`: `ok`, `ambiguous` (autumn clock change), `nonexistent` (spring gap, or no full UTC hour), and for trials `not-full-hour`. Nothing is silently shifted.
+- Parsers (`parseWeekday`, `parseUtcTime`, `parseStartsAt`) throw `TimeValueError` on bad backend values. Never show `day_display`: it's the UTC weekday.
+- The server doesn't know the student's zone, so local times render only in Client Components after mount (see `node_modules/next/dist/docs/01-app/02-guides/preventing-flash-before-hydration.md`). `observesDaylightSaving()` decides whether specs 21 and 23 show the daylight-saving note.
+
 ### Auth flow (JWT in httpOnly cookies)
 
 Tokens never reach client JS:
@@ -317,7 +330,7 @@ as part of the spec.
 | 03 | backend-api-client | Server-only HTTP client: backend base URL from the env module (spec 01), `Authorization: JWT <access>` from the cookie, trailing-slash paths | 01 | Implemented |
 | 04 | drf-error-handling | Normalize DRF errors (`{field: [msgs]}`, `non_field_errors`, `{detail}`) into one shape and map them onto react-hook-form field and form errors | 03 | Implemented |
 | 05 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 03 | Implemented |
-| 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Stub |
+| 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Implemented |
 | 07 | route-protection | Proxy redirects: guests on student routes → `/login` (with return path); logged-in users on `/login` and `/register` → `/dashboard` | 02 | Stub |
 | 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match; apply the `.dark` class from the saved choice (light, dark or system, default system) via `next-themes`, following the system preference live, with no flash of the wrong theme on load. The toggle control is in 10 | — | Stub |
 | 09 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 401/403/400); also mount the single app-wide toaster (shadcn Sonner) styled with the success, warning and destructive tokens and following the active theme. Specs that show toasts use this toaster and never add their own | 08 | Stub |
