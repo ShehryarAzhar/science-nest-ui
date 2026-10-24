@@ -248,9 +248,26 @@ No code hard-codes the backend URL or reads these variables from `process.env` d
 
 - `auth: "public"` never reads cookies, so it's safe inside `"use cache"` (subjects, registration, JWT create).
 - `auth: "student"` sends `Authorization: JWT <access>` from the cookie. Without the cookie it throws a 401 `ApiError` without calling the backend. Callers must sit inside `<Suspense>` under Cache Components.
-- Every failure throws `ApiError` with `kind` (`http`, `network`, `invalid_response`), `status` (every response that arrived, including non-JSON errors), `body` (the DRF JSON as sent; normalized by `lib/api-errors.ts`) and `nonJson`. It never carries tokens, headers or request bodies.
+- Every failure throws `ApiError` with `kind` (`http`, `network`, `invalid_response`), `status` (every response that arrived, including non-JSON errors), `body` (the DRF JSON as sent; normalized by `lib/api-errors.ts`), `nonJson` and `timedOut` (network errors that hit the timeout). It never carries tokens, headers or request bodies.
+- `apiRequestWithStatus<T>(method, path, options)` resolves `{ status, body }` instead of just the body, for callers that pass the 2xx status on (the student API proxy).
 
 `proxy.ts` doesn't use it: Proxy can't import `server-only` modules, so refresh keeps its own `fetch`.
+
+### Student API proxy
+
+Browser code never calls Django directly (it has no token). It calls `app/api/student/[...path]/route.ts`, which forwards through the API client in student mode and returns Django's status and JSON body unchanged. Browser paths have no trailing slash; the handler adds it for the backend.
+
+| Browser path | Methods |
+|---|---|
+| `/api/student/schedule`, `/api/student/availability` | GET |
+| `/api/student/classes`, `/api/student/trial-lessons` | GET, POST |
+| `/api/student/classes/{id}`, `/api/student/trial-lessons/{id}` | GET, PATCH, DELETE (edits use PATCH only) |
+
+- Any other path → 404, any other method → 405 with a per-path `Allow` header, neither calling the backend.
+- POST, PATCH and DELETE need an `Origin` matching `SITE_URL` (403 otherwise). A body that isn't valid JSON → 400.
+- Only the method, mapped path, JSON body and auth header reach Django: no browser headers, cookies or query string.
+- Non-JSON error pages → same status with the generic `{detail}`; network failures → 502 (timeout 504) with the network `{detail}`; invalid 2xx → 502; anything else → 500. The client's own 401 for a missing cookie has an empty body.
+- Every response has `Cache-Control: no-store`.
 
 ### Backend errors
 
@@ -267,7 +284,7 @@ A 401 from `POST /auth/jwt/create/` always shows "Invalid username or password."
 Tokens never reach client JS:
 
 1. `app/login/actions.ts` — server action `login()` posts credentials through the API client (public mode), stores `access` (270 s, 30 s before the 5-minute token expires) and `refresh` (1 day) as httpOnly, `sameSite: lax` cookies, then `redirect("/")`. Returns `{ error }` on failure.
-2. `proxy.ts` — runs on every request. If `access` is missing but `refresh` exists, it calls the refresh endpoint, sets the new `access` cookie on both the forwarded request (so the current render sees it) and the response. If refresh fails, it deletes both cookies and redirects to `/login`.
+2. `proxy.ts` — runs on every request. If `access` is missing but `refresh` exists, it calls the refresh endpoint, sets the new `access` cookie on both the forwarded request (so the current render sees it) and the response. If refresh fails, it deletes both cookies; requests under `/api/` then get a 401 JSON `{"detail": "Your session has expired. Log in again."}` (a fetch would otherwise follow the redirect to the login page's HTML), and page requests are redirected to `/login`.
 
 Keep cookie options (names, `maxAge`, flags) consistent between these two files when changing either.
 
@@ -299,7 +316,7 @@ as part of the spec.
 | 02 | session-token-refresh | `proxy.ts` refreshes an expired `access` cookie from the `refresh` cookie; on failure clears both cookies and redirects to `/login` | — | Implemented |
 | 03 | backend-api-client | Server-only HTTP client: backend base URL from the env module (spec 01), `Authorization: JWT <access>` from the cookie, trailing-slash paths | 01 | Implemented |
 | 04 | drf-error-handling | Normalize DRF errors (`{field: [msgs]}`, `non_field_errors`, `{detail}`) into one shape and map them onto react-hook-form field and form errors | 03 | Implemented |
-| 05 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 03 | Stub |
+| 05 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 03 | Implemented |
 | 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Stub |
 | 07 | route-protection | Proxy redirects: guests on student routes → `/login` (with return path); logged-in users on `/login` and `/register` → `/dashboard` | 02 | Stub |
 | 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match; apply the `.dark` class from the saved choice (light, dark or system, default system) via `next-themes`, following the system preference live, with no flash of the wrong theme on load. The toggle control is in 10 | — | Stub |
@@ -320,10 +337,10 @@ as part of the spec.
 | 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Stub |
 | 24 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 22 | Stub |
 | 25 | book-weekly-class | `/classes/new` form: subject, level (filtered to the subject), duration 40/60, slot; `POST /classes/`; handles "already booked" by refetching availability; invalidates schedule and availability | 04, 09, 21, 23 | Stub |
-| 26 | edit-weekly-class | `/classes/[id]/edit`: load `GET /classes/{id}/`, prefill the form, keep its own slot selectable, save with an update request | 09, 25 | Stub |
+| 26 | edit-weekly-class | `/classes/[id]/edit`: load `GET /classes/{id}/`, prefill the form, keep its own slot selectable, save with PATCH | 09, 25 | Stub |
 | 27 | delete-weekly-class | Delete action with confirmation from the dashboard: `DELETE /classes/{id}/`, then invalidate schedule and availability | 09, 21 | Stub |
 | 28 | book-trial-lesson | `/trial-lesson/new` form: subject, level, slot; `POST /trial-lessons/`; only offered when the student has no trial lesson; invalidates schedule and availability | 04, 09, 21, 24 | Stub |
-| 29 | edit-trial-lesson | Edit page for the trial lesson: prefill, keep its own slot selectable, save with an update request | 09, 28 | Stub |
+| 29 | edit-trial-lesson | Edit page for the trial lesson: prefill, keep its own slot selectable, save with PATCH | 09, 28 | Stub |
 | 30 | cancel-trial-lesson | Cancel action with confirmation: `DELETE /trial-lessons/{id}/`, then invalidate schedule and availability | 09, 21 | Stub |
 | 31 | trial-lesson-locked-state | Locked display for a past or completed trial lesson: hide edit and cancel, and show the backend's 403 message if an edit or delete is refused | 09, 29, 30 | Stub |
 

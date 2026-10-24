@@ -44,8 +44,15 @@ export async function proxy(request: NextRequest) {
 
     return response;
   } catch {
-    // Refresh failed: log the user out and send them to login
-    const response = NextResponse.redirect(new URL("/login", request.url));
+    // Refresh failed: log the user out. API requests get a 401 JSON response,
+    // since a fetch would follow a redirect to the login page's HTML; pages
+    // are sent to login
+    const response = request.nextUrl.pathname.startsWith("/api/")
+      ? NextResponse.json(
+          { detail: "Your session has expired. Log in again." },
+          { status: 401 },
+        )
+      : NextResponse.redirect(new URL("/login", request.url));
     response.cookies.delete("access");
     response.cookies.delete("refresh");
     return response;

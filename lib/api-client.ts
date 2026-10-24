@@ -9,7 +9,7 @@ import { env } from "@/lib/env";
 // "public" never reads cookies (safe inside "use cache"), "student" sends the
 // access cookie as `Authorization: JWT <token>`
 
-type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 type Auth = "public" | "student";
 
 export type ApiErrorKind = "http" | "network" | "invalid_response";
@@ -22,6 +22,8 @@ export class ApiError extends Error {
   readonly status?: number;
   readonly body?: unknown;
   readonly nonJson: boolean;
+  // Only set for network errors: the request hit the 10 s timeout
+  readonly timedOut: boolean;
 
   constructor(
     message: string,
@@ -30,6 +32,7 @@ export class ApiError extends Error {
       status?: number;
       body?: unknown;
       nonJson?: boolean;
+      timedOut?: boolean;
     },
   ) {
     super(message);
@@ -38,6 +41,7 @@ export class ApiError extends Error {
     this.status = details.status;
     this.body = details.body;
     this.nonJson = details.nonJson ?? false;
+    this.timedOut = details.timedOut ?? false;
   }
 }
 
@@ -63,11 +67,13 @@ function parseBody(text: string): { body?: unknown; nonJson: boolean } {
   }
 }
 
-export async function apiRequest<T>(
+// Like apiRequest, but also resolves the 2xx status, for callers that pass it
+// on (the student API proxy)
+export async function apiRequestWithStatus<T>(
   method: Method,
   path: string,
   { auth, body }: { auth: Auth; body?: unknown },
-): Promise<T> {
+): Promise<{ status: number; body: T }> {
   // Every backend path ends with a slash. Fail loudly instead of fixing it
   if (!path.startsWith("/") || !path.endsWith("/")) {
     throw new Error(`API path must start and end with '/': ${path}`);
@@ -103,7 +109,7 @@ export async function apiRequest<T>(
       (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT");
     throw new ApiError(
       `${label} failed: ${timedOut ? "timed out" : "network error"}`,
-      { kind: "network" },
+      { kind: "network", timedOut },
     );
   }
 
@@ -127,8 +133,16 @@ export async function apiRequest<T>(
     });
   }
 
-  // undefined for 204 or an empty body
-  return parsed.body as T;
+  // body is undefined for 204 or an empty body
+  return { status, body: parsed.body as T };
+}
+
+export async function apiRequest<T>(
+  method: Method,
+  path: string,
+  options: { auth: Auth; body?: unknown },
+): Promise<T> {
+  return (await apiRequestWithStatus<T>(method, path, options)).body;
 }
 
 export const api = {
