@@ -238,15 +238,25 @@ Subject slugs: `biology`, `chemistry`, `physics`, `science`, `biochemistry`,
 App Router frontend for a separate **Django backend** (Djoser/SimpleJWT-style endpoints: `/auth/jwt/create/`, `/auth/jwt/refresh/`). The backend URL comes from `API_BASE_URL`, validated together with `SITE_URL` by the env module (spec 01). It's two files with one definition:
 
 - `lib/env-core.ts` — Zod validation and the normalised `env` values (trailing slash stripped), no `server-only` marker. Imported only by `proxy.ts` (Next treats Proxy as outside the App Router for `server-only`) and `next.config.ts` (so a missing or invalid value stops `npm run dev` and `npm run build` at startup).
-- `lib/env.ts` — `import "server-only"` plus a re-export of `lib/env-core.ts`. All app code imports this one: server actions (`app/login/actions.ts`), Server Components, route handlers and the spec 03 API client.
+- `lib/env.ts` — `import "server-only"` plus a re-export of `lib/env-core.ts`. All app code imports this one: server actions, Server Components, route handlers and the API client (`lib/api-client.ts`).
 
 No code hard-codes the backend URL or reads these variables from `process.env` directly.
+
+### Backend API client
+
+`lib/api-client.ts` (server-only, axios, 10 s timeout) is how app code calls Django: `api.get/post/put/patch/delete<T>(path, { auth, body? })`. Paths must start and end with `/`; anything else throws before a request is sent.
+
+- `auth: "public"` never reads cookies, so it's safe inside `"use cache"` (subjects, registration, JWT create).
+- `auth: "student"` sends `Authorization: JWT <access>` from the cookie. Without the cookie it throws a 401 `ApiError` without calling the backend. Callers must sit inside `<Suspense>` under Cache Components.
+- Every failure throws `ApiError` with `kind` (`http`, `network`, `invalid_response`), `status` (every response that arrived, including non-JSON errors), `body` (the DRF JSON as sent; spec 04 normalizes it) and `nonJson`. It never carries tokens, headers or request bodies.
+
+`proxy.ts` doesn't use it: Proxy can't import `server-only` modules, so refresh keeps its own `fetch`.
 
 ### Auth flow (JWT in httpOnly cookies)
 
 Tokens never reach client JS:
 
-1. `app/login/actions.ts` — server action `login()` posts credentials to the backend with axios, stores `access` (5 min) and `refresh` (1 day) as httpOnly, `sameSite: lax` cookies, then `redirect("/")`. Returns `{ error }` on failure.
+1. `app/login/actions.ts` — server action `login()` posts credentials through the API client (public mode), stores `access` (270 s, 30 s before the 5-minute token expires) and `refresh` (1 day) as httpOnly, `sameSite: lax` cookies, then `redirect("/")`. Returns `{ error }` on failure.
 2. `proxy.ts` — runs on every request. If `access` is missing but `refresh` exists, it calls the refresh endpoint, sets the new `access` cookie on both the forwarded request (so the current render sees it) and the response. If refresh fails, it deletes both cookies and redirects to `/login`.
 
 Keep cookie options (names, `maxAge`, flags) consistent between these two files when changing either.
@@ -260,7 +270,7 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
 
 ### Installed but not yet wired up
 
-TanStack Query, Zustand, react-hook-form + zod (`@hookform/resolvers`), and axios are dependencies intended for data fetching, client state, and forms. There are no providers, stores, or form schemas yet — when adding the first one, a `QueryClientProvider` will need a client component wrapper in `app/layout.tsx`.
+TanStack Query, Zustand, and react-hook-form + zod (`@hookform/resolvers`) are dependencies intended for data fetching, client state, and forms. There are no providers, stores, or form schemas yet — when adding the first one, a `QueryClientProvider` will need a client component wrapper in `app/layout.tsx`.
 
 Path alias: `@/*` → repo root.
 
@@ -277,7 +287,7 @@ as part of the spec.
 |----|------|----------------|------------|--------|
 | 01 | project-setup | Environment and repo setup: `.env` (local, git-ignored) and `.env.example` (committed, placeholder values and a comment per variable) for `API_BASE_URL` and `SITE_URL`; a validated, server-only env module that fails clearly on missing or invalid values, importable from `proxy.ts` (split into `lib/env-core.ts` + `lib/env.ts` if the server-only marker breaks there); replacing the hard-coded `http://127.0.0.1:8000` in `app/login/actions.ts` and `proxy.ts` with `API_BASE_URL` from the env module; `.gitignore` covering env files (with an exception for `.env.example`), build output and editor/OS files; `package.json` name `science-nest` and `engines.node` `>=20.9`; a README with setup and run steps; removal of unused scaffold leftovers (`public/file.svg`, `globe.svg`, `window.svg`, boilerplate README text). Doesn't add the HTTP client (03), or touch fonts, `app/globals.css`, the favicon (08), root layout metadata (10), or `app/page.tsx` and its `next.svg`/`vercel.svg` (18) | — | Implemented |
 | 02 | session-token-refresh | `proxy.ts` refreshes an expired `access` cookie from the `refresh` cookie; on failure clears both cookies and redirects to `/login` | — | Implemented |
-| 03 | backend-api-client | Server-only HTTP client: backend base URL from the env module (spec 01), `Authorization: JWT <access>` from the cookie, trailing-slash paths | 01 | Stub |
+| 03 | backend-api-client | Server-only HTTP client: backend base URL from the env module (spec 01), `Authorization: JWT <access>` from the cookie, trailing-slash paths | 01 | Implemented |
 | 04 | drf-error-handling | Normalize DRF errors (`{field: [msgs]}`, `non_field_errors`, `{detail}`) into one shape and map them onto react-hook-form field and form errors | 03 | Stub |
 | 05 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 03 | Stub |
 | 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Stub |
@@ -311,5 +321,5 @@ as part of the spec.
 - Trial lesson response fields aren't documented: is there an `id`, `ends_at`, or a completed flag? Without a completed flag, the frontend can only detect "locked" from a past `starts_at` or a 403 (affects 21, 29–31).
 - `/schedule/` item shapes aren't documented: the name of each weekly class's price field, and the format of `weekly_cost` (number or string) (affects 21).
 - Registration: does Djoser require email activation? Should the app log the student in automatically after registering, or send them to `/login`? (affects 14)
-- Does the 5-minute `access` cookie `maxAge` match SimpleJWT's `ACCESS_TOKEN_LIFETIME`? Does the 1-day `refresh` cookie match the refresh token lifetime? (affects 02)
+- Does the 1-day `refresh` cookie match the refresh token lifetime? (affects 02)
 - Should guests see "Book" buttons on public pages that send them to `/login`, or should those buttons only appear for students? (affects 17, 18)
