@@ -216,6 +216,23 @@ Subject slugs: `biology`, `chemistry`, `physics`, `science`, `biochemistry`,
 - Hero: `loading="eager"` + `fetchPriority="high"` (`priority` is deprecated
   in Next 16). Everything else lazy-loads.
 
+### Logo
+
+- **Mark** (viewBox 48): pointy-top hexagon, circumradius 21, stroke 3, round
+  joins; bowl `M14.031 19.351 A11 11 0 1 0 33.969 19.351`, stroke 3, round
+  caps; dot at (24, 29), r 4. Hexagon and bowl use primary, the dot uses eosin.
+- **Wordmark:** "Science Nest" in Source Serif 4 SemiBold, outlined, with a
+  hexagon for the dot on the "i".
+- **Files:** `public/logo/science-nest-{horizontal,vertical,mark}{,-dark,-mono}.svg`;
+  `app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png`. Don't edit them.
+  - 08 confirms the app icons work.
+  - 10 builds `components/brand/logo.tsx`: inline SVG,
+    `variant="horizontal" | "vertical" | "mark"`, paths copied from the
+    `public/logo` files, colours from theme tokens.
+  - 13 and 14 use the vertical logo.
+- Clear space: 0.25 × mark height. Below 24px, use the favicon mark (hexagon
+  and dot, no bowl).
+
 ## Architecture
 
 App Router frontend for a separate **Django backend** (Djoser/SimpleJWT-style endpoints: `/auth/jwt/create/`, `/auth/jwt/refresh/`). The backend URL comes from `API_BASE_URL`, validated together with `SITE_URL` by the env module (spec 01). It's two files with one definition:
