@@ -24,14 +24,22 @@
 .DS_Store
 *.pem
 
+# editor / OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (.env.example is committed as the template)
 .env*
+!.env.example
 
 # vercel
 .vercel

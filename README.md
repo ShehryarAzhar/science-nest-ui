@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Science Nest
 
-## Getting Started
+Science Nest is the booking frontend for a science tutor. Students register,
+browse subjects (Biology, Chemistry, Physics, Science, Biochemistry and
+Molecular Biology), book a free 60-minute trial lesson and book recurring
+weekly classes. It's a Next.js App Router app that talks to a separate Django
+REST backend. Teacher and admin work happens in the Django admin.
 
-First, run the development server:
+## Prerequisites
+
+- Node.js 20.9 or later
+- A running Science Nest Django backend (by default at `http://127.0.0.1:8000`)
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then edit `.env` if your backend or site URL differs from the defaults. Both
+variables are required. If one is missing or invalid, the app stops with an
+error naming it.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Name | Purpose | Example |
+|---|---|---|
+| `API_BASE_URL` | Base URL of the Django REST backend. Every backend path is appended to it. | `http://127.0.0.1:8000` |
+| `SITE_URL` | Public base URL of this frontend, used for absolute URLs (sitemap, Open Graph, metadata). | `http://localhost:3000` |
 
-## Learn More
+Both must be absolute `http` or `https` URLs without a trailing slash. They're
+read on the server only. Restart `npm run dev` after changing `.env`.
 
-To learn more about Next.js, take a look at the following resources:
+## Run
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run dev      # development server on http://localhost:3000
+npm run build    # production build
+npm start        # serve the production build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Checks
 
-## Deploy on Vercel
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project docs
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Architecture, backend API, design rules and the feature roadmap are in
+[`CLAUDE.md`](CLAUDE.md). Feature specs live in [`.claude/specs/`](.claude/specs/).
