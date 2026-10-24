@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const REFRESH_URL = "http://127.0.0.1:8000/auth/jwt/refresh/";
+import { env } from "@/lib/env-core";
+
+// Built at module load, outside the try below, so a config error isn't
+// mistaken for a failed refresh
+const REFRESH_URL = `${env.API_BASE_URL}/auth/jwt/refresh/`;
 
 export async function proxy(request: NextRequest) {
   const access = request.cookies.get("access");

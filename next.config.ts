@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+// Validates the env at the start of every dev and build run
+import "./lib/env-core";
+
 const nextConfig: NextConfig = {
   /* config options here */
   experimental: {

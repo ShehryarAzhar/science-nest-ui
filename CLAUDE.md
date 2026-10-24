@@ -218,7 +218,12 @@ Subject slugs: `biology`, `chemistry`, `physics`, `science`, `biochemistry`,
 
 ## Architecture
 
-App Router frontend for a separate **Django backend at `http://127.0.0.1:8000`** (Djoser/SimpleJWT-style endpoints: `/auth/jwt/create/`, `/auth/jwt/refresh/`). The backend URL is currently hard-coded in `app/login/actions.ts` and `proxy.ts`.
+App Router frontend for a separate **Django backend** (Djoser/SimpleJWT-style endpoints: `/auth/jwt/create/`, `/auth/jwt/refresh/`). The backend URL comes from `API_BASE_URL`, validated together with `SITE_URL` by the env module (spec 01). It's two files with one definition:
+
+- `lib/env-core.ts` — Zod validation and the normalised `env` values (trailing slash stripped), no `server-only` marker. Imported only by `proxy.ts` (Next treats Proxy as outside the App Router for `server-only`) and `next.config.ts` (so a missing or invalid value stops `npm run dev` and `npm run build` at startup).
+- `lib/env.ts` — `import "server-only"` plus a re-export of `lib/env-core.ts`. All app code imports this one: server actions (`app/login/actions.ts`), Server Components, route handlers and the spec 03 API client.
+
+No code hard-codes the backend URL or reads these variables from `process.env` directly.
 
 ### Auth flow (JWT in httpOnly cookies)
 
@@ -253,9 +258,9 @@ as part of the spec.
 
 | #  | Spec | Responsibility | Depends on | Status |
 |----|------|----------------|------------|--------|
-| 01 | project-setup | Environment and repo setup: `.env` (local, git-ignored) and `.env.example` (committed, placeholder values and a comment per variable) for `API_BASE_URL` and `SITE_URL`; a validated, server-only env module that fails clearly on missing values; `.gitignore` covering env files (with an exception for `.env.example`), build output and editor/OS files; `package.json` name `science-nest`; a README with setup and run steps; removal of unused scaffold leftovers (`public/file.svg`, `globe.svg`, `window.svg`, boilerplate README text). Doesn't replace the hard-coded backend URLs (03), or touch fonts, `app/globals.css`, the favicon (08), root layout metadata (10), or `app/page.tsx` and its `next.svg`/`vercel.svg` (18) | — | Stub |
+| 01 | project-setup | Environment and repo setup: `.env` (local, git-ignored) and `.env.example` (committed, placeholder values and a comment per variable) for `API_BASE_URL` and `SITE_URL`; a validated, server-only env module that fails clearly on missing or invalid values, importable from `proxy.ts` (split into `lib/env-core.ts` + `lib/env.ts` if the server-only marker breaks there); replacing the hard-coded `http://127.0.0.1:8000` in `app/login/actions.ts` and `proxy.ts` with `API_BASE_URL` from the env module; `.gitignore` covering env files (with an exception for `.env.example`), build output and editor/OS files; `package.json` name `science-nest` and `engines.node` `>=20.9`; a README with setup and run steps; removal of unused scaffold leftovers (`public/file.svg`, `globe.svg`, `window.svg`, boilerplate README text). Doesn't add the HTTP client (03), or touch fonts, `app/globals.css`, the favicon (08), root layout metadata (10), or `app/page.tsx` and its `next.svg`/`vercel.svg` (18) | — | Implemented |
 | 02 | session-token-refresh | `proxy.ts` refreshes an expired `access` cookie from the `refresh` cookie; on failure clears both cookies and redirects to `/login` | — | Implemented |
-| 03 | backend-api-client | Server-only HTTP client: backend base URL from the env module (spec 01), `Authorization: JWT <access>` from the cookie, trailing-slash paths; replaces the hard-coded URLs in `app/login/actions.ts` and `proxy.ts` | 01 | Stub |
+| 03 | backend-api-client | Server-only HTTP client: backend base URL from the env module (spec 01), `Authorization: JWT <access>` from the cookie, trailing-slash paths | 01 | Stub |
 | 04 | drf-error-handling | Normalize DRF errors (`{field: [msgs]}`, `non_field_errors`, `{detail}`) into one shape and map them onto react-hook-form field and form errors | 03 | Stub |
 | 05 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 03 | Stub |
 | 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Stub |

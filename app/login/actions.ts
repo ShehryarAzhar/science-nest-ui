@@ -4,13 +4,15 @@ import axios from "axios";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { env } from "@/lib/env";
+
 export async function login(credentials: {
   username: string;
   password: string;
 }) {
   try {
     const { data } = await axios.post(
-      "http://127.0.0.1:8000/auth/jwt/create/",
+      `${env.API_BASE_URL}/auth/jwt/create/`,
       credentials,
     );
 
