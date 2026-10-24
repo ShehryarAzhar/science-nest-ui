@@ -248,9 +248,19 @@ No code hard-codes the backend URL or reads these variables from `process.env` d
 
 - `auth: "public"` never reads cookies, so it's safe inside `"use cache"` (subjects, registration, JWT create).
 - `auth: "student"` sends `Authorization: JWT <access>` from the cookie. Without the cookie it throws a 401 `ApiError` without calling the backend. Callers must sit inside `<Suspense>` under Cache Components.
-- Every failure throws `ApiError` with `kind` (`http`, `network`, `invalid_response`), `status` (every response that arrived, including non-JSON errors), `body` (the DRF JSON as sent; spec 04 normalizes it) and `nonJson`. It never carries tokens, headers or request bodies.
+- Every failure throws `ApiError` with `kind` (`http`, `network`, `invalid_response`), `status` (every response that arrived, including non-JSON errors), `body` (the DRF JSON as sent; normalized by `lib/api-errors.ts`) and `nonJson`. It never carries tokens, headers or request bodies.
 
 `proxy.ts` doesn't use it: Proxy can't import `server-only` modules, so refresh keeps its own `fetch`.
+
+### Backend errors
+
+Every form shows backend errors through one shape, `NormalizedError` (`kind`, `status`, `fieldErrors`, `formErrors`):
+
+- `lib/drf-errors.ts` (shared, safe in Client Components): the type, `normalizeDrfBody()`, the fallback messages, and the readers `formErrorMessage()` and `hasErrorMessage()` (e.g. to spot "This timeslot is already booked."). A body with a string `detail` uses only `detail`, so SimpleJWT's `code` and `messages` are ignored.
+- `lib/api-errors.ts` (server-only): `normalizeApiError(error)` for anything caught around an API call. Server actions return its result to the client. Non-`ApiError` throws get `kind: "unknown"` and the generic message, never the error's own text.
+- `lib/form-errors.ts` (shared): `applyServerErrors(form, error, { fields, rename? })` sets each field's messages and puts the rest on `root.server`, joined with `\n`. Forms render them with `whitespace-pre-line`.
+
+A 401 from `POST /auth/jwt/create/` always shows "Invalid username or password.", never SimpleJWT's `detail`.
 
 ### Auth flow (JWT in httpOnly cookies)
 
@@ -270,7 +280,7 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
 
 ### Installed but not yet wired up
 
-TanStack Query, Zustand, and react-hook-form + zod (`@hookform/resolvers`) are dependencies intended for data fetching, client state, and forms. There are no providers, stores, or form schemas yet — when adding the first one, a `QueryClientProvider` will need a client component wrapper in `app/layout.tsx`.
+TanStack Query, Zustand, and react-hook-form + zod (`@hookform/resolvers`) are dependencies intended for data fetching, client state, and forms. Mapping backend errors onto react-hook-form already exists (`lib/form-errors.ts`, see Backend errors), but there are no providers, stores, forms, or form schemas yet — when adding the first one, a `QueryClientProvider` will need a client component wrapper in `app/layout.tsx`.
 
 Path alias: `@/*` → repo root.
 
@@ -288,7 +298,7 @@ as part of the spec.
 | 01 | project-setup | Environment and repo setup: `.env` (local, git-ignored) and `.env.example` (committed, placeholder values and a comment per variable) for `API_BASE_URL` and `SITE_URL`; a validated, server-only env module that fails clearly on missing or invalid values, importable from `proxy.ts` (split into `lib/env-core.ts` + `lib/env.ts` if the server-only marker breaks there); replacing the hard-coded `http://127.0.0.1:8000` in `app/login/actions.ts` and `proxy.ts` with `API_BASE_URL` from the env module; `.gitignore` covering env files (with an exception for `.env.example`), build output and editor/OS files; `package.json` name `science-nest` and `engines.node` `>=20.9`; a README with setup and run steps; removal of unused scaffold leftovers (`public/file.svg`, `globe.svg`, `window.svg`, boilerplate README text). Doesn't add the HTTP client (03), or touch fonts, `app/globals.css`, the favicon (08), root layout metadata (10), or `app/page.tsx` and its `next.svg`/`vercel.svg` (18) | — | Implemented |
 | 02 | session-token-refresh | `proxy.ts` refreshes an expired `access` cookie from the `refresh` cookie; on failure clears both cookies and redirects to `/login` | — | Implemented |
 | 03 | backend-api-client | Server-only HTTP client: backend base URL from the env module (spec 01), `Authorization: JWT <access>` from the cookie, trailing-slash paths | 01 | Implemented |
-| 04 | drf-error-handling | Normalize DRF errors (`{field: [msgs]}`, `non_field_errors`, `{detail}`) into one shape and map them onto react-hook-form field and form errors | 03 | Stub |
+| 04 | drf-error-handling | Normalize DRF errors (`{field: [msgs]}`, `non_field_errors`, `{detail}`) into one shape and map them onto react-hook-form field and form errors | 03 | Implemented |
 | 05 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 03 | Stub |
 | 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Stub |
 | 07 | route-protection | Proxy redirects: guests on student routes → `/login` (with return path); logged-in users on `/login` and `/register` → `/dashboard` | 02 | Stub |

@@ -15,7 +15,8 @@ type Auth = "public" | "student";
 export type ApiErrorKind = "http" | "network" | "invalid_response";
 
 // Thrown for every failed call. `body` is the backend's JSON as sent (DRF
-// field errors, non_field_errors or detail). Spec 04 normalizes it
+// field errors, non_field_errors or detail). `normalizeApiError` in
+// `lib/api-errors.ts` normalizes it
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly status?: number;
