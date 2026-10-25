@@ -286,6 +286,8 @@ Every form shows backend errors through one shape, `NormalizedError` (`kind`, `s
 
 A 401 from `POST /auth/jwt/create/` always shows "Invalid username or password.", never SimpleJWT's `detail`.
 
+The login form (`app/login/login-form.tsx`) is the first user of `applyServerErrors()`; later forms follow its pattern (Zod schema shared with the action, `Field`/`FieldError` from `components/ui/field.tsx`, a `role="alert"` form-level message above the submit button).
+
 ### Time zones
 
 `lib/time-zone.ts` (shared, pure) holds every UTC ↔ local conversion and time display format. Callers always pass the IANA time zone and "now" (or a reference instant); the helpers never read either themselves. `getBrowserTimeZone()` is for client code only.
@@ -299,7 +301,7 @@ A 401 from `POST /auth/jwt/create/` always shows "Invalid username or password."
 
 Tokens never reach client JS:
 
-1. `app/login/actions.ts` — server action `login()` posts credentials through the API client (public mode), stores `access` (270 s, 30 s before the 5-minute token expires) and `refresh` (1 day) as httpOnly, `sameSite: lax` cookies, then `redirect("/")`. Returns `{ error }` on failure.
+1. `app/login/actions.ts` — server action `login({ username, password, next })`, called by the `/login` form (`app/login/login-form.tsx`, which reads `next` from the URL at submit time so the page stays static). It re-checks the input with the shared Zod schema (`app/login/schema.ts`), posts the credentials through the API client (public mode), stores `access` (270 s, 30 s before the 5-minute token expires) and `refresh` (1 day) as httpOnly, `sameSite: lax` cookies, then redirects to `safeReturnPath(next)` (`lib/return-path.ts`: same-site paths only; anything else, `/login` or `/register` → `/dashboard`). On failure it returns a `NormalizedError` (a 401 → "Invalid username or password.").
 2. `proxy.ts` — runs on pages and `/api/`; its `config.matcher` skips static files (`/_next/static`, `/_next/image`, `/images/`, `/logo/`, the app icons and any path with a file extension), so one page load makes at most one refresh call. If `access` is missing but `refresh` exists, it calls the refresh endpoint, sets the new `access` cookie on both the forwarded request (so the current render sees it) and the response. If refresh fails, it deletes both cookies and treats the request as a guest's; requests under `/api/` then get a 401 JSON `{"detail": "Your session has expired. Log in again."}` (a fetch would otherwise follow a redirect to the login page's HTML).
 3. Route protection (same file, after the refresh step). "Logged in" means an `access` cookie is present or a refresh just succeeded; the token isn't checked any further. Guests on student routes (`/dashboard`, `/account`, `/classes`, `/trial-lesson`, matched on whole segments with everything under them) are redirected to `/login?next=<path + query>`. Logged-in users on `/login` or `/register` are redirected to `/dashboard`. Every other page, including public pages after a failed refresh, loads normally.
 4. `app/login/actions.ts` — server action `logout()` deletes both cookies (path `/`) and `redirect("/")`, with no backend call. The header's form posts it directly (works without JS) and clears the TanStack Query cache on submit. Server actions post to the current URL, so a user whose cookies are already gone on a student route gets the proxy's `/login?next=…` redirect instead and the action doesn't run (they're logged out anyway).
@@ -361,7 +363,7 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
 
 ### Installed but not yet wired up
 
-Zustand and react-hook-form + zod (`@hookform/resolvers`) are dependencies intended for client state and forms. Mapping backend errors onto react-hook-form already exists (`lib/form-errors.ts`, see Backend errors), but there are no stores, forms, or form schemas yet.
+Zustand is a dependency intended for client state, with no stores yet. react-hook-form + zod (`@hookform/resolvers`) are wired up: the login form and its schema (`app/login/`) are the first, with backend errors mapped by `lib/form-errors.ts` (see Backend errors).
 
 Path alias: `@/*` → repo root.
 
@@ -388,7 +390,7 @@ as part of the spec.
 | 10 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Subjects, Dashboard, Account), a light/dark/system theme toggle in the header, footer, site-wide title template | 08 | Implemented |
 | 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style; images: see Design › Images | 08, 10 | Implemented |
 | 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Implemented |
-| 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Stub |
+| 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Implemented |
 | 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Stub |
 | 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Stub |
 | 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices; images: see Design › Images | 03, 10 | Stub |
