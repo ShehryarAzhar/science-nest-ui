@@ -329,6 +329,16 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
   `@/components/ui/sonner`, never from `sonner` (the wrapper gives plain
   toasts their info icon), and never add another `<Toaster />`. Its fade and
   scale motion overrides Sonner's CSS in `app/globals.css`.
+- App shell (spec 10) lives in the root layout: skip link, header
+  (`components/layout/site-header.tsx`), `<main id="main-content">`, footer
+  (`components/layout/site-footer.tsx`). Pages render inside that `<main>`
+  and never add their own. Only the header nav reads the `access` cookie
+  (and `usePathname`), inside `<Suspense>`; the rest of the shell is static.
+  Spec 12 adds logout to the logged-in branch of
+  `components/layout/site-nav.tsx`. The logo is `components/brand/logo.tsx`
+  (`height` in px drives the under-24px favicon mark, copied from
+  `app/icon.svg`). Menus use `components/ui/dropdown-menu.tsx`, restyled to
+  the tokens.
 
 ### Installed but not yet wired up
 
@@ -356,7 +366,7 @@ as part of the spec.
 | 07 | route-protection | Proxy redirects: guests on student routes → `/login` (with return path); logged-in users on `/login` and `/register` → `/dashboard` | 02 | Implemented |
 | 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match; apply the `.dark` class from the saved choice (light, dark or system, default system) via `next-themes`, following the system preference live, with no flash of the wrong theme on load. The toggle control is in 10 | — | Implemented |
 | 09 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 4xx except 408 and 429); also mount the single app-wide toaster (shadcn Sonner) styled with the success, warning and destructive tokens and following the active theme. Specs that show toasts use this toaster and never add their own | 08 | Implemented |
-| 10 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Dashboard, Account), a light/dark/system theme toggle in the header, footer, site-wide title template | 08 | Stub |
+| 10 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Subjects, Dashboard, Account), a light/dark/system theme toggle in the header, footer, site-wide title template | 08 | Implemented |
 | 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style; images: see Design › Images | 08, 10 | Stub |
 | 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Stub |
 | 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Stub |
