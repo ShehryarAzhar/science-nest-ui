@@ -166,6 +166,22 @@
   }
 }
 
+/* Toasts (components/ui/sonner.tsx): fade and scale over the overlay duration
+   instead of Sonner's 400ms slide. Sonner still positions expanded toasts
+   with --y, so only the scale is added. Written against Sonner 2's data
+   attributes; recheck after upgrading it */
+[data-sonner-toaster] [data-sonner-toast],
+[data-sonner-toaster] [data-sonner-toast] > * {
+  transition-property: transform, opacity, height;
+  transition-duration: var(--duration-overlay);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-mounted="false"],
+[data-sonner-toaster]
+  [data-sonner-toast][data-removed="true"][data-swipe-out="false"] {
+  --y: translateY(calc(var(--lift) * var(--offset))) scale(0.96) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
