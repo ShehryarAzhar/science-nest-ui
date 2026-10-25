@@ -338,7 +338,22 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
   `components/layout/site-nav.tsx`. The logo is `components/brand/logo.tsx`
   (`height` in px drives the under-24px favicon mark, copied from
   `app/icon.svg`). Menus use `components/ui/dropdown-menu.tsx`, restyled to
-  the tokens.
+  the tokens. Both fonts are defined once in `app/fonts.ts`.
+- Route fallbacks (spec 11), app-level only: `app/not-found.tsx` (every
+  unmatched URL and `notFound()`, title "Page not found"), `app/error.tsx`
+  (Next 16 `retry()`, shows only the `digest` as a reference, never the
+  error's message), `app/global-error.tsx` (its own `<html>`/`<body>`,
+  `globals.css`, the fonts and `ThemeProvider`, since it replaces the root
+  layout) and a static `app/loading.tsx` (no pulse or spinner, per Motion).
+  They share `components/route-state.tsx` (layout) and
+  `components/error-state.tsx` (error content). Pages add segment-level
+  fallbacks only when they need them.
+- `components/specimen-image.tsx` (`SpecimenImage`) is the only way to show
+  `public/images/` illustrations: string `src`, required `alt`, `width` and
+  `height` (intrinsic), `className` sizes the reserved box, optional
+  `fallback` shown if loading fails (nothing otherwise), lazy by default,
+  `loading="eager"` + `fetchPriority="high"` for the hero. Single `src`; a
+  dark variant, if ever needed, is a second image switched with CSS.
 
 ### Installed but not yet wired up
 
@@ -367,7 +382,7 @@ as part of the spec.
 | 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match; apply the `.dark` class from the saved choice (light, dark or system, default system) via `next-themes`, following the system preference live, with no flash of the wrong theme on load. The toggle control is in 10 | — | Implemented |
 | 09 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 4xx except 408 and 429); also mount the single app-wide toaster (shadcn Sonner) styled with the success, warning and destructive tokens and following the active theme. Specs that show toasts use this toaster and never add their own | 08 | Implemented |
 | 10 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Subjects, Dashboard, Account), a light/dark/system theme toggle in the header, footer, site-wide title template | 08 | Implemented |
-| 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style; images: see Design › Images | 08, 10 | Stub |
+| 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style; images: see Design › Images | 08, 10 | Implemented |
 | 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Stub |
 | 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Stub |
 | 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Stub |
