@@ -133,7 +133,8 @@ Functional pages (dashboard, pickers, forms) put clarity first: no decoration.
 - eosin `#C2295E` / `#FF7AA8`, on-eosin `#FFFFFF` / `#14122A` (brand accent: "yours", trial lesson, hero; never errors)
 - secondary = accent tint `#ECE9F8` / `#2A2550`, text `#2D2370` / `#DCD7FA`
 - muted `#EEEDF3` / `#232040` · border = input `#DCDAE8` / `#34304F`
-- destructive `#B42318` / `#FF8A7A`
+- destructive `#B42318` / `#FF8A7A`, on-destructive `#FFFFFF` / `#14122A` (solid
+  confirm buttons in delete and cancel dialogs)
 - success `#1E7A4C` / `#5FD39A`, on-success `#FFFFFF` / `#14122A` (booking confirmations)
 - warning `#F2B53A` / `#F5C451`, on-warning `#1C1A33` / `#14122A` (locked trial lesson,
   "slot was just taken" notice). Use warning only as a fill with on-warning text,
@@ -308,6 +309,13 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
 - **Tailwind CSS v4**, CSS-first config in `app/globals.css` (no `tailwind.config`); processed via `@tailwindcss/turbopack` loader configured in `next.config.ts`. Theme tokens are CSS variables; dark mode uses the `.dark` class variant.
 - `cn()` in `lib/utils.ts` re-exports from the `cn` package.
 - Icons: `lucide-react`.
+- Theme: `next-themes` (spec 08), via the client wrapper
+  `components/theme-provider.tsx` in the root layout (class strategy, default
+  `system`, saved in localStorage). Known and expected: in dev, React 19 may
+  log "Encountered a script tag while rendering React component…" for
+  next-themes' inline script. It's dev-only and harmless (the script already
+  ran from the server HTML before paint), so don't replace next-themes to
+  silence it.
 
 ### Installed but not yet wired up
 
@@ -333,7 +341,7 @@ as part of the spec.
 | 05 | student-api-proxy | Route handler that forwards browser requests for student endpoints to Django, adding the JWT from the httpOnly cookie and passing status and body through unchanged | 03 | Implemented |
 | 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Implemented |
 | 07 | route-protection | Proxy redirects: guests on student routes → `/login` (with return path); logged-in users on `/login` and `/register` → `/dashboard` | 02 | Implemented |
-| 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match; apply the `.dark` class from the saved choice (light, dark or system, default system) via `next-themes`, following the system preference live, with no flash of the wrong theme on load. The toggle control is in 10 | — | Stub |
+| 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match; apply the `.dark` class from the saved choice (light, dark or system, default system) via `next-themes`, following the system preference live, with no flash of the wrong theme on load. The toggle control is in 10 | — | Implemented |
 | 09 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 401/403/400); also mount the single app-wide toaster (shadcn Sonner) styled with the success, warning and destructive tokens and following the active theme. Specs that show toasts use this toaster and never add their own | 08 | Stub |
 | 10 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Dashboard, Account), a light/dark/system theme toggle in the header, footer, site-wide title template | 08 | Stub |
 | 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style; images: see Design › Images | 08, 10 | Stub |
