@@ -134,7 +134,7 @@ Functional pages (dashboard, pickers, forms) put clarity first: no decoration.
 - secondary = accent tint `#ECE9F8` / `#2A2550`, text `#2D2370` / `#DCD7FA`
 - muted `#EEEDF3` / `#232040` · border = input `#DCDAE8` / `#34304F`
 - destructive `#B42318` / `#FF8A7A`, on-destructive `#FFFFFF` / `#14122A` (solid
-  confirm buttons in delete and cancel dialogs)
+  confirm buttons in delete and cancel dialogs, and error toasts)
 - success `#1E7A4C` / `#5FD39A`, on-success `#FFFFFF` / `#14122A` (booking confirmations)
 - warning `#F2B53A` / `#F5C451`, on-warning `#1C1A33` / `#14122A` (locked trial lesson,
   "slot was just taken" notice). Use warning only as a fill with on-warning text,
@@ -316,10 +316,23 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
   next-themes' inline script. It's dev-only and harmless (the script already
   ran from the server HTML before paint), so don't replace next-themes to
   silence it.
+- Data fetching: TanStack Query (spec 09), via the client wrapper
+  `components/query-provider.tsx` in the root layout (one client per browser
+  session, a new one per server render). Shared defaults: queries never retry
+  a 4xx except 408 and 429, everything else retries at most twice; mutations
+  never retry; `staleTime` 30 s (availability overrides it, spec 22). The
+  retry rule reads a numeric `status` on the thrown error, so browser fetch
+  wrappers must throw errors that carry the HTTP status.
+- Toasts: shadcn Sonner in `components/ui/sonner.tsx`, mounted once in the
+  root layout and styled with the theme tokens (success, warning and
+  destructive fills, surface for default and info). Import `toast` from
+  `@/components/ui/sonner`, never from `sonner` (the wrapper gives plain
+  toasts their info icon), and never add another `<Toaster />`. Its fade and
+  scale motion overrides Sonner's CSS in `app/globals.css`.
 
 ### Installed but not yet wired up
 
-TanStack Query, Zustand, and react-hook-form + zod (`@hookform/resolvers`) are dependencies intended for data fetching, client state, and forms. Mapping backend errors onto react-hook-form already exists (`lib/form-errors.ts`, see Backend errors), but there are no providers, stores, forms, or form schemas yet — when adding the first one, a `QueryClientProvider` will need a client component wrapper in `app/layout.tsx`.
+Zustand and react-hook-form + zod (`@hookform/resolvers`) are dependencies intended for client state and forms. Mapping backend errors onto react-hook-form already exists (`lib/form-errors.ts`, see Backend errors), but there are no stores, forms, or form schemas yet.
 
 Path alias: `@/*` → repo root.
 
@@ -342,7 +355,7 @@ as part of the spec.
 | 06 | time-zone-helpers | Pure helpers converting UTC weekday + hour and UTC `starts_at` to and from the student's local time, including day rollover, plus display formatting | — | Implemented |
 | 07 | route-protection | Proxy redirects: guests on student routes → `/login` (with return path); logged-in users on `/login` and `/register` → `/dashboard` | 02 | Implemented |
 | 08 | design-theme | Implement the CLAUDE.md Design section as Tailwind v4 theme tokens in `app/globals.css` (light and dark), load the fonts with `next/font` in the root layout, and restyle installed shadcn components to match; apply the `.dark` class from the saved choice (light, dark or system, default system) via `next-themes`, following the system preference live, with no flash of the wrong theme on load. The toggle control is in 10 | — | Implemented |
-| 09 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 401/403/400); also mount the single app-wide toaster (shadcn Sonner) styled with the success, warning and destructive tokens and following the active theme. Specs that show toasts use this toaster and never add their own | 08 | Stub |
+| 09 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 4xx except 408 and 429); also mount the single app-wide toaster (shadcn Sonner) styled with the success, warning and destructive tokens and following the active theme. Specs that show toasts use this toaster and never add their own | 08 | Implemented |
 | 10 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Dashboard, Account), a light/dark/system theme toggle in the header, footer, site-wide title template | 08 | Stub |
 | 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style; images: see Design › Images | 08, 10 | Stub |
 | 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Stub |
