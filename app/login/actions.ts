@@ -41,3 +41,14 @@ export async function login(credentials: {
 
   redirect("/");
 }
+
+// No backend call: there's no logout or token blacklist endpoint
+export async function logout() {
+  const cookieStore = await cookies();
+
+  // delete() sends path "/", the path login and proxy.ts set them with
+  cookieStore.delete("access");
+  cookieStore.delete("refresh");
+
+  redirect("/");
+}

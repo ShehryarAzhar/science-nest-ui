@@ -9,8 +9,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { LogoutButton, LogoutMenuItem } from "@/components/layout/logout-button"
 import { cn } from "@/lib/utils"
 
 type NavLink = { href: string; label: string; primary?: boolean }
@@ -63,6 +65,11 @@ export function SiteNav({ loggedIn }: { loggedIn: boolean }) {
               </li>
             )
           })}
+          {loggedIn && (
+            <li>
+              <LogoutButton />
+            </li>
+          )}
         </ul>
       </nav>
 
@@ -95,6 +102,12 @@ export function SiteNav({ loggedIn }: { loggedIn: boolean }) {
                 </DropdownMenuItem>
               )
             })}
+            {loggedIn && (
+              <>
+                <DropdownMenuSeparator />
+                <LogoutMenuItem />
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </nav>

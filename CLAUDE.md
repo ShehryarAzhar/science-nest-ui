@@ -67,6 +67,8 @@ Django REST Framework + MySQL, auth via Djoser + SimpleJWT.
 - `POST jwt/refresh/`: refresh → `access` only.
 - `GET users/me/`: username, email, first_name, last_name, phone_number
   (null for admin accounts). Read-only.
+- No logout or token blacklist endpoint: logout only deletes the app's
+  cookies, and a refresh token stays valid on the server until it expires.
 
 **Subjects (public, read-only):** `GET /subjects/`, `GET /subjects/{slug}/`
 - Fields: id, name, slug, description (plain text, may be blank), levels,
@@ -300,8 +302,9 @@ Tokens never reach client JS:
 1. `app/login/actions.ts` — server action `login()` posts credentials through the API client (public mode), stores `access` (270 s, 30 s before the 5-minute token expires) and `refresh` (1 day) as httpOnly, `sameSite: lax` cookies, then `redirect("/")`. Returns `{ error }` on failure.
 2. `proxy.ts` — runs on pages and `/api/`; its `config.matcher` skips static files (`/_next/static`, `/_next/image`, `/images/`, `/logo/`, the app icons and any path with a file extension), so one page load makes at most one refresh call. If `access` is missing but `refresh` exists, it calls the refresh endpoint, sets the new `access` cookie on both the forwarded request (so the current render sees it) and the response. If refresh fails, it deletes both cookies and treats the request as a guest's; requests under `/api/` then get a 401 JSON `{"detail": "Your session has expired. Log in again."}` (a fetch would otherwise follow a redirect to the login page's HTML).
 3. Route protection (same file, after the refresh step). "Logged in" means an `access` cookie is present or a refresh just succeeded; the token isn't checked any further. Guests on student routes (`/dashboard`, `/account`, `/classes`, `/trial-lesson`, matched on whole segments with everything under them) are redirected to `/login?next=<path + query>`. Logged-in users on `/login` or `/register` are redirected to `/dashboard`. Every other page, including public pages after a failed refresh, loads normally.
+4. `app/login/actions.ts` — server action `logout()` deletes both cookies (path `/`) and `redirect("/")`, with no backend call. The header's form posts it directly (works without JS) and clears the TanStack Query cache on submit. Server actions post to the current URL, so a user whose cookies are already gone on a student route gets the proxy's `/login?next=…` redirect instead and the action doesn't run (they're logged out anyway).
 
-Keep cookie options (names, `maxAge`, flags) consistent between these two files when changing either.
+Keep cookie options (names, `maxAge`, flags) consistent between these two files and the logout action when changing any of them.
 
 ### UI stack
 
@@ -334,8 +337,9 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
   (`components/layout/site-footer.tsx`). Pages render inside that `<main>`
   and never add their own. Only the header nav reads the `access` cookie
   (and `usePathname`), inside `<Suspense>`; the rest of the shell is static.
-  Spec 12 adds logout to the logged-in branch of
-  `components/layout/site-nav.tsx`. The logo is `components/brand/logo.tsx`
+  The logged-in branch of `components/layout/site-nav.tsx` ends with the
+  logout control (`components/layout/logout-button.tsx`: a quiet button on
+  desktop, the last Menu item after a separator on mobile). The logo is `components/brand/logo.tsx`
   (`height` in px drives the under-24px favicon mark, copied from
   `app/icon.svg`). Menus use `components/ui/dropdown-menu.tsx`, restyled to
   the tokens. Both fonts are defined once in `app/fonts.ts`.
@@ -383,7 +387,7 @@ as part of the spec.
 | 09 | query-provider | TanStack `QueryClientProvider` in a client wrapper mounted in the root layout, with shared defaults (no retry on 4xx except 408 and 429); also mount the single app-wide toaster (shadcn Sonner) styled with the success, warning and destructive tokens and following the active theme. Specs that show toasts use this toaster and never add their own | 08 | Implemented |
 | 10 | app-shell-navigation | Root layout chrome: header with guest links (Subjects, Log in, Register) or student links (Subjects, Dashboard, Account), a light/dark/system theme toggle in the header, footer, site-wide title template | 08 | Implemented |
 | 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style; images: see Design › Images | 08, 10 | Implemented |
-| 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Stub |
+| 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Implemented |
 | 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Stub |
 | 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Stub |
 | 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Stub |
