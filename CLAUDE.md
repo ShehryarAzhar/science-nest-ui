@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run dev` — dev server on http://localhost:3000 (Turbopack)
 - `npx tsc --noEmit` — type-check
 - `npm run lint` — ESLint 9 flat config (`eslint-config-next` core-web-vitals + typescript)
-- `npm run build` — production build
+- `npm run build` — production build (needs the backend running at `API_BASE_URL`: `/subjects` is prerendered from it)
 
 ## No tests
 
@@ -45,6 +45,18 @@ Pages: home, subjects list and detail (public), register, login, student
 dashboard (schedule and weekly cost), book or edit a weekly class, book, edit
 or cancel the trial lesson, and a read-only account page. No profile editing,
 password reset or password change.
+
+Booking buttons on public pages (subject detail, home) are shown to everyone,
+guests and students alike, with the same links: "Book a free trial" →
+`/trial-lesson/new` and "Book a weekly class" → `/classes/new` (with the
+subject preselected where relevant). Guests are sent to `/login?next=…` by the
+proxy (spec 07), and the login page's Register link carries `next` (spec 14),
+so they return to the booking page after signing up or logging in. Never link
+guests to `/register` directly: a logged-in student would be redirected to
+`/dashboard` and lose the target. This keeps the public pages static (no
+cookie reads). Because those pages can't hide the trial button, the trial
+booking page (spec 28) must handle a student who already has a trial lesson:
+show it with a link to the dashboard, not an error.
 
 ## Backend API
 
@@ -278,6 +290,14 @@ Browser code never calls Django directly (it has no token). It calls `app/api/st
 - Non-JSON error pages → same status with the generic `{detail}`; network failures → 502 (timeout 504) with the network `{detail}`; invalid 2xx → 502; anything else → 500. The client's own 401 for a missing cookie has an empty body.
 - Every response has `Cache-Control: no-store`.
 
+### Subjects data
+
+`lib/subjects.ts` (server-only): `getSubjects()` is the one way to read `GET /subjects/` (specs 16, 17, 18), with the `Subject` and `SubjectLevel` types and a Zod check of the response. It's `"use cache"` + `cacheLife("hours")` in public mode, so pages using it are prerendered and `npm run build` needs the backend reachable.
+
+- On any failure it throws "Couldn't fetch subjects from API_BASE_URL. Is the backend running?" (the `ApiError` as `cause`). It never returns an error value, which would be cached for the whole cache life.
+- Pages catch that with an error boundary (`catchError` from `next/error`, e.g. `app/subjects/subjects-error-boundary.tsx`), never `try/catch`: Next still fails the build on an error caught by a boundary during prerender, and a failed runtime revalidation keeps the previous page. A `try/catch` would bake the error state into the static page.
+- `/subjects` (`app/subjects/`) shows the inline error panel only when no cached list exists; Try again calls `retry()`.
+
 ### Backend errors
 
 Every form shows backend errors through one shape, `NormalizedError` (`kind`, `status`, `fieldErrors`, `formErrors`):
@@ -413,7 +433,7 @@ as part of the spec.
 | 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Implemented |
 | 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Implemented |
 | 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Implemented |
-| 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices; images: see Design › Images | 03, 10 | Stub |
+| 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices; images: see Design › Images | 03, 10 | Implemented |
 | 17 | subject-detail-page | Public `/subjects/[slug]` page rendering `GET /subjects/{slug}/` (description, levels, prices, booking CTAs); unknown slug → not-found; images: see Design › Images | 11, 16 | Stub |
 | 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, CTAs to register and book a trial; images: see Design › Images | 16 | Stub |
 | 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Stub |
@@ -434,4 +454,3 @@ as part of the spec.
 - Trial lesson response fields aren't documented: is there an `id`, `ends_at`, or a completed flag? Without a completed flag, the frontend can only detect "locked" from a past `starts_at` or a 403 (affects 21, 29–31).
 - `/schedule/` item shapes aren't documented: the name of each weekly class's price field, and the format of `weekly_cost` (number or string) (affects 21).
 - Does the 1-day `refresh` cookie match the refresh token lifetime? (affects 02)
-- Should guests see "Book" buttons on public pages that send them to `/login`, or should those buttons only appear for students? (affects 17, 18)

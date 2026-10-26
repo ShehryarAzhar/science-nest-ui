@@ -40,6 +40,11 @@ npm run build    # production build
 npm start        # serve the production build
 ```
 
+`npm run build` needs the backend running at `API_BASE_URL`: public pages such
+as `/subjects` are prerendered from it, and the build fails with "Couldn't
+fetch subjects from API_BASE_URL. Is the backend running?" when it can't be
+reached.
+
 ## Checks
 
 ```bash
