@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-
 import { LoginForm } from "@/app/login/login-form";
+import { RegisterLink } from "@/app/login/register-link";
 import { Logo } from "@/components/brand/logo";
 
 export const metadata: Metadata = {
@@ -31,13 +30,7 @@ export default function LoginPage() {
         </div>
       </div>
       <p className="mt-6 text-center text-muted-foreground">
-        New to Science Nest?{" "}
-        <Link
-          href="/register"
-          className="font-semibold text-primary underline underline-offset-4"
-        >
-          Register
-        </Link>
+        New to Science Nest? <RegisterLink />
       </p>
     </div>
   );
