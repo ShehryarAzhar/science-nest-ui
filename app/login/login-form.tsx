@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CircleAlertIcon, EyeIcon, EyeOffIcon } from "lucide-react"
+import { CircleAlertIcon, CircleCheckIcon } from "lucide-react"
 
 import { login } from "@/app/login/actions"
 import {
@@ -11,6 +11,8 @@ import {
   loginSchema,
   type LoginValues,
 } from "@/app/login/schema"
+import { useLocationSearch } from "@/app/login/use-location-search"
+import { PasswordInput } from "@/components/password-input"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -29,7 +31,22 @@ export function LoginForm() {
     formState: { errors, isSubmitting },
   } = form
   const [isPending, startTransition] = useTransition()
-  const [passwordShown, setPasswordShown] = useState(false)
+  // Arriving from a successful registration (register() redirects here with
+  // `registered=1` and the new username): a notice until the next submit
+  const search = useLocationSearch()
+  const registered = search.get("registered") === "1"
+  const registeredUsername = registered ? search.get("username") : null
+  const [noticeDismissed, setNoticeDismissed] = useState(false)
+  const prefilled = useRef(false)
+
+  useEffect(() => {
+    if (!registeredUsername || prefilled.current) {
+      return
+    }
+    prefilled.current = true
+    form.setValue("username", registeredUsername)
+    form.setFocus("password")
+  }, [form, registeredUsername])
   // Stays true through the redirect, so the button can't send a second login
   const pending = isPending || isSubmitting
 
@@ -61,7 +78,24 @@ export function LoginForm() {
   return (
     // method="post": without JS a native submit never puts the password in
     // the URL
-    <form method="post" noValidate onSubmit={onSubmit} className="flex flex-col">
+    <form
+      method="post"
+      noValidate
+      onSubmit={(event) => {
+        setNoticeDismissed(true)
+        void onSubmit(event)
+      }}
+      className="flex flex-col"
+    >
+      {/* Always mounted so screen readers announce the notice when it appears */}
+      <div role="status">
+        {registered && !noticeDismissed && (
+          <p className="mb-6 flex items-start gap-2 rounded-md bg-success px-3 py-2.5 text-sm text-success-foreground">
+            <CircleCheckIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <span>Account created. Log in to continue.</span>
+          </p>
+        )}
+      </div>
       <div className="flex flex-col gap-4">
         <Field data-invalid={!!errors.username} className="gap-2">
           <FieldLabel htmlFor="username">Username</FieldLabel>
@@ -81,31 +115,13 @@ export function LoginForm() {
 
         <Field data-invalid={!!errors.password} className="gap-2">
           <FieldLabel htmlFor="password">Password</FieldLabel>
-          <div className="relative">
-            <Input
-              id="password"
-              type={passwordShown ? "text" : "password"}
-              autoComplete="current-password"
-              className="pr-11"
-              aria-invalid={!!errors.password}
-              aria-describedby={errors.password ? "password-error" : undefined}
-              {...register("password")}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="absolute top-0 right-0 size-11 text-muted-foreground hover:text-foreground"
-              aria-label={passwordShown ? "Hide password" : "Show password"}
-              onClick={() => setPasswordShown((shown) => !shown)}
-            >
-              {passwordShown ? (
-                <EyeOffIcon aria-hidden className="size-5" />
-              ) : (
-                <EyeIcon aria-hidden className="size-5" />
-              )}
-            </Button>
-          </div>
+          <PasswordInput
+            id="password"
+            autoComplete="current-password"
+            aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? "password-error" : undefined}
+            {...register("password")}
+          />
           <FieldError id="password-error" className="whitespace-pre-line">
             {errors.password?.message}
           </FieldError>

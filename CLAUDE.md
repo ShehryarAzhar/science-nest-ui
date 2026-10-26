@@ -61,8 +61,10 @@ Django REST Framework + MySQL, auth via Djoser + SimpleJWT.
 
 **Auth (`/auth/`)**
 - `POST users/`: register with username, email, password, first_name,
-  last_name, phone_number (required, optional `+` then 7–15 digits). Creates
-  a Student profile.
+  last_name, phone_number (required, optional `+` then 7–15 digits, no
+  surrounding whitespace, no country restriction, not unique). Creates a
+  Student profile.
+- No email activation: new users are active immediately.
 - `POST jwt/create/`: username + password → `access`, `refresh`.
 - `POST jwt/refresh/`: refresh → `access` only.
 - `GET users/me/`: username, email, first_name, last_name, phone_number
@@ -137,7 +139,7 @@ Functional pages (dashboard, pickers, forms) put clarity first: no decoration.
 - muted `#EEEDF3` / `#232040` · border = input `#DCDAE8` / `#34304F`
 - destructive `#B42318` / `#FF8A7A`, on-destructive `#FFFFFF` / `#14122A` (solid
   confirm buttons in delete and cancel dialogs, and error toasts)
-- success `#1E7A4C` / `#5FD39A`, on-success `#FFFFFF` / `#14122A` (booking confirmations)
+- success `#1E7A4C` / `#5FD39A`, on-success `#FFFFFF` / `#14122A` (confirmations, e.g. booking confirmed, account created)
 - warning `#F2B53A` / `#F5C451`, on-warning `#1C1A33` / `#14122A` (locked trial lesson,
   "slot was just taken" notice). Use warning only as a fill with on-warning text,
   never as text on the background. Pair both with an icon, not colour alone.
@@ -308,6 +310,12 @@ Tokens never reach client JS:
 
 Keep cookie options (names, `maxAge`, flags) consistent between these two files and the logout action when changing any of them.
 
+**Registration doesn't log in.** `app/register/actions.ts` — server action `register({ values, next })` re-checks the input with `registerSchema` (`app/register/schema.ts`), posts to `POST /auth/users/` (public mode), sets no cookies, and redirects to `/login?registered=1&username=…` (plus `next`, passed through `safeReturnPath()`; never the password). On failure it returns a `NormalizedError`. The login form reads those params in the browser (`app/login/use-location-search.ts`, so `/login` stays static): a success notice until the next submit, the username prefilled, the password focused. The login page's "Register" link carries `next` on to `/register`.
+
+### Register page and phone field
+
+`/register` (spec 14) is static; `next` is read at submit time and the default country after mount. The phone field lives only in `app/register/` (`phone-field.tsx`, `country-combobox.tsx`), so only that route loads `react-phone-number-input` (`/max` metadata, for real per-country validity via `libphonenumber-js/max`) and its flags (bundled from `react-phone-number-input/flags`: never the library's default flag CDN URL, never its `style.css`). The value sent is E.164. The country selector is a Base UI Combobox (`components/ui/combobox.tsx`, trimmed shadcn parts, restyled to the tokens) that searches name, ISO code and calling code. The default country is the region of the first `navigator.languages` entry that has one; a bare language gets no default. With no country selected, input counts as international only after a typed leading `+`: digits without one stay as a draft (no country is guessed from them) until a country is chosen, so the field uses the library's basic input (`smartCaret={false}`). Keep `libphonenumber-js` updated: its full metadata can reject newly assigned number ranges until it's updated. The password show/hide input is shared by login and register (`components/password-input.tsx`).
+
 ### UI stack
 
 - **shadcn/ui** with the `base-vega` style, built on `@base-ui/react` (not Radix). Add components with `npx shadcn add <name>`; they land in `components/ui/`. Config in `components.json`.
@@ -344,7 +352,7 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
   desktop, the last Menu item after a separator on mobile). The logo is `components/brand/logo.tsx`
   (`height` in px drives the under-24px favicon mark, copied from
   `app/icon.svg`). Menus use `components/ui/dropdown-menu.tsx`, restyled to
-  the tokens. Both fonts are defined once in `app/fonts.ts`.
+  the tokens; searchable pickers use `components/ui/combobox.tsx`, styled the same. Both fonts are defined once in `app/fonts.ts`.
 - Route fallbacks (spec 11), app-level only: `app/not-found.tsx` (every
   unmatched URL and `notFound()`, title "Page not found"), `app/error.tsx`
   (Next 16 `retry()`, shows only the `digest` as a reference, never the
@@ -363,7 +371,7 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
 
 ### Installed but not yet wired up
 
-Zustand is a dependency intended for client state, with no stores yet. react-hook-form + zod (`@hookform/resolvers`) are wired up: the login form and its schema (`app/login/`) are the first, with backend errors mapped by `lib/form-errors.ts` (see Backend errors).
+Zustand is a dependency intended for client state, with no stores yet. react-hook-form + zod (`@hookform/resolvers`) are wired up: the login form and its schema (`app/login/`) are the first, then the register form (`app/register/`), with backend errors mapped by `lib/form-errors.ts` (see Backend errors).
 
 Path alias: `@/*` → repo root.
 
@@ -391,7 +399,7 @@ as part of the spec.
 | 11 | route-fallback-states | App-level `loading.tsx`, `error.tsx`, `not-found.tsx` and `global-error.tsx` in the app's style; images: see Design › Images | 08, 10 | Implemented |
 | 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Implemented |
 | 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Implemented |
-| 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Stub |
+| 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Implemented |
 | 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Stub |
 | 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices; images: see Design › Images | 03, 10 | Stub |
 | 17 | subject-detail-page | Public `/subjects/[slug]` page rendering `GET /subjects/{slug}/` (description, levels, prices, booking CTAs); unknown slug → not-found; images: see Design › Images | 11, 16 | Stub |
@@ -413,6 +421,5 @@ as part of the spec.
 ### Open questions
 - Trial lesson response fields aren't documented: is there an `id`, `ends_at`, or a completed flag? Without a completed flag, the frontend can only detect "locked" from a past `starts_at` or a 403 (affects 21, 29–31).
 - `/schedule/` item shapes aren't documented: the name of each weekly class's price field, and the format of `weekly_cost` (number or string) (affects 21).
-- Registration: does Djoser require email activation? Should the app log the student in automatically after registering, or send them to `/login`? (affects 14)
 - Does the 1-day `refresh` cookie match the refresh token lifetime? (affects 02)
 - Should guests see "Book" buttons on public pages that send them to `/login`, or should those buttons only appear for students? (affects 17, 18)
