@@ -23,8 +23,30 @@ function matchesPrefix(pathname: string, prefixes: string[]) {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+// Subject slugs are lowercase. Wrong-case URLs would render at request time
+// and be saved in the route cache, which on a case-insensitive filesystem
+// (Windows, macOS) is the same file as the real page's. Percent escapes keep
+// their case, so an encoded path can't redirect to itself forever
+function lowercaseSubjectPath(pathname: string) {
+  if (!pathname.startsWith("/subjects/")) return null;
+  const lower = pathname.replace(/%[0-9A-Fa-f]{2}|[A-Z]+/g, (m) =>
+    m.startsWith("%") ? m : m.toLowerCase(),
+  );
+  return lower === pathname ? null : lower;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  // Before the refresh step: the redirected request runs it instead
+  const lowerPath = lowercaseSubjectPath(pathname);
+  if (lowerPath) {
+    const url = request.nextUrl.clone();
+    url.pathname = lowerPath;
+    url.search = search;
+    return NextResponse.redirect(url, 308);
+  }
+
   const access = request.cookies.get("access");
   const refresh = request.cookies.get("refresh");
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { BookOpenIcon } from "lucide-react";
 
 import { getSubjects } from "@/lib/subjects";
+import { FreeTrialNote } from "./free-trial-note";
 import { SubjectCard } from "./subject-card";
 import { SubjectsErrorBoundary } from "./subjects-error-boundary";
 import { SubjectsPanel } from "./subjects-panel";
@@ -45,16 +46,7 @@ export default function SubjectsPage() {
           taught by a tutor with an MPhil in Biochemistry and Molecular Biology
           and 8+ years of teaching experience.
         </p>
-        <p className="mt-4 flex items-center gap-2">
-          <svg
-            viewBox="0 0 12 12"
-            aria-hidden
-            className="size-3 shrink-0 fill-eosin"
-          >
-            <path d="M6 0.5 10.76 3.25V8.75L6 11.5 1.24 8.75V3.25Z" />
-          </svg>
-          Your first lesson is a free 60-minute trial.
-        </p>
+        <FreeTrialNote className="mt-4" />
       </header>
       <div className="mt-8 md:mt-10">
         <SubjectsErrorBoundary>
