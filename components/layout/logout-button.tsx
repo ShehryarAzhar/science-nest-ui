@@ -69,6 +69,28 @@ export function LogoutButton() {
   )
 }
 
+function PrimarySubmit({ className }: { className?: string }) {
+  const { pending } = useFormStatus()
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className={cn(buttonVariants(), className)}
+    >
+      <LogoutLabel />
+    </button>
+  )
+}
+
+// The main action of the "Student account needed" message (spec 15)
+export function LogoutPrimaryButton({ className }: { className?: string }) {
+  return (
+    <LogoutForm>
+      <PrimarySubmit className={className} />
+    </LogoutForm>
+  )
+}
+
 // The menu closes on click, so the pending label is rarely seen here
 export function LogoutMenuItem() {
   return (

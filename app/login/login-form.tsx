@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CircleAlertIcon, CircleCheckIcon } from "lucide-react"
+import { CircleAlertIcon, CircleCheckIcon, InfoIcon } from "lucide-react"
 
 import { login } from "@/app/login/actions"
 import {
@@ -36,6 +36,9 @@ export function LoginForm() {
   const search = useLocationSearch()
   const registered = search.get("registered") === "1"
   const registeredUsername = registered ? search.get("username") : null
+  // Sent here by the student access guard after a 401 (lib/student-api.ts).
+  // Route protection's redirect never adds it
+  const expired = !registered && search.get("expired") === "1"
   const [noticeDismissed, setNoticeDismissed] = useState(false)
   const prefilled = useRef(false)
 
@@ -93,6 +96,12 @@ export function LoginForm() {
           <p className="mb-6 flex items-start gap-2 rounded-md bg-success px-3 py-2.5 text-sm text-success-foreground">
             <CircleCheckIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
             <span>Account created. Log in to continue.</span>
+          </p>
+        )}
+        {expired && !noticeDismissed && (
+          <p className="mb-6 flex items-start gap-2 rounded-md bg-secondary px-3 py-2.5 text-sm text-secondary-foreground">
+            <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <span>Your session has expired. Log in again.</span>
           </p>
         )}
       </div>

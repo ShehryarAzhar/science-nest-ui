@@ -35,8 +35,9 @@ function makeQueryClient() {
 
 let browserQueryClient: QueryClient | undefined
 
-// A new client per server render, one client for the whole browser session
-function getQueryClient() {
+// A new client per server render, one client for the whole browser session.
+// Exported so the session guard (lib/student-api.ts) can clear the cache
+export function getQueryClient() {
   if (typeof window === "undefined") {
     return makeQueryClient()
   }

@@ -113,7 +113,7 @@ Django REST Framework + MySQL, auth via Djoser + SimpleJWT.
 **Access rules:** `/classes/`, `/trial-lessons/`, `/schedule/` and
 `/availability/` return 401 without a token, and 403 for a logged-in user with
 no Student profile (admin accounts). Show those users a friendly message, not
-an error.
+an error (see Architecture › Student access guard).
 
 ## Design
 
@@ -290,6 +290,16 @@ A 401 from `POST /auth/jwt/create/` always shows "Invalid username or password."
 
 The login form (`app/login/login-form.tsx`) is the first user of `applyServerErrors()`; later forms follow its pattern (Zod schema shared with the action, `Field`/`FieldError` from `components/ui/field.tsx`, a `role="alert"` form-level message above the submit button).
 
+### Student access guard
+
+Spec 15. How student pages handle 401 and 403 from student endpoints:
+
+- `lib/student-api.ts` (Client Components only): `studentFetch<T>(path, { method, body, signal })` is the only browser fetch wrapper for `/api/student/…` (paths without a trailing slash). It resolves the JSON body (`undefined` for 204 or an empty body) and throws `StudentApiError` (`kind`, `status`, `method`, `normalized: NormalizedError`, a safe `message`) for every failure except a 401: non-2xx → `http` with the status (the proxy's 502/504 too); a rejected fetch → `network` with no status; a non-JSON 2xx → `invalid_response`. Aborts are re-thrown as aborts.
+- **401:** `studentFetch` calls `endStudentSession()` and returns a promise that never settles, so queries stay loading and mutations pending (no error flash). The first call only: POST `/api/session/end` (deletes both httpOnly cookies, same-origin `Origin` required, no backend call), clear the query cache, then a full load of `/login?expired=1&next=<path + query>` (through `safeReturnPath()`). The cookies must go first: with an `access` cookie still set, `proxy.ts` would bounce `/login` back to `/dashboard`. The login form shows "Your session has expired. Log in again." for `expired=1`.
+- **403 on a read** (a GET through `studentFetch`, or any student-mode `ApiError` in a Server Component, which only read): the page renders `StudentAccountNeeded` (`components/student-access/`) instead of its content, with Log out and Home. A 403 from PATCH or DELETE (locked trial lesson) goes to the form like any other error.
+- `lib/student-access.ts` (shared): `isSessionError()` and `isNoStudentProfileError()`, structural checks on `status` (and `method`) that work for both error types.
+- `studentAccessFallback(error)` (`components/student-access/student-access-fallback.tsx`) returns the element to render, or `null`. Server Components: `catch (e) { const f = studentAccessFallback(e); if (f) return f; throw e }`; its 401 branch renders `SessionExpiredRedirect`, which runs `endStudentSession()` after mount (needs JS). Server actions keep using `normalizeApiError()`.
+
 ### Time zones
 
 `lib/time-zone.ts` (shared, pure) holds every UTC ↔ local conversion and time display format. Callers always pass the IANA time zone and "now" (or a reference instant); the helpers never read either themselves. `getBrowserTimeZone()` is for client code only.
@@ -307,8 +317,9 @@ Tokens never reach client JS:
 2. `proxy.ts` — runs on pages and `/api/`; its `config.matcher` skips static files (`/_next/static`, `/_next/image`, `/images/`, `/logo/`, the app icons and any path with a file extension), so one page load makes at most one refresh call. If `access` is missing but `refresh` exists, it calls the refresh endpoint, sets the new `access` cookie on both the forwarded request (so the current render sees it) and the response. If refresh fails, it deletes both cookies and treats the request as a guest's; requests under `/api/` then get a 401 JSON `{"detail": "Your session has expired. Log in again."}` (a fetch would otherwise follow a redirect to the login page's HTML).
 3. Route protection (same file, after the refresh step). "Logged in" means an `access` cookie is present or a refresh just succeeded; the token isn't checked any further. Guests on student routes (`/dashboard`, `/account`, `/classes`, `/trial-lesson`, matched on whole segments with everything under them) are redirected to `/login?next=<path + query>`. Logged-in users on `/login` or `/register` are redirected to `/dashboard`. Every other page, including public pages after a failed refresh, loads normally.
 4. `app/login/actions.ts` — server action `logout()` deletes both cookies (path `/`) and `redirect("/")`, with no backend call. The header's form posts it directly (works without JS) and clears the TanStack Query cache on submit. Server actions post to the current URL, so a user whose cookies are already gone on a student route gets the proxy's `/login?next=…` redirect instead and the action doesn't run (they're logged out anyway).
+5. `app/api/session/end/route.ts` — POST only, deletes both cookies the same way when the student access guard ends a session the backend refused (see Student access guard).
 
-Keep cookie options (names, `maxAge`, flags) consistent between these two files and the logout action when changing any of them.
+Keep cookie options (names, `maxAge`, flags) consistent between these two files, the logout action and the session-end route when changing any of them.
 
 **Registration doesn't log in.** `app/register/actions.ts` — server action `register({ values, next })` re-checks the input with `registerSchema` (`app/register/schema.ts`), posts to `POST /auth/users/` (public mode), sets no cookies, and redirects to `/login?registered=1&username=…` (plus `next`, passed through `safeReturnPath()`; never the password). On failure it returns a `NormalizedError`. The login form reads those params in the browser (`app/login/use-location-search.ts`, so `/login` stays static): a success notice until the next submit, the username prefilled, the password focused. The login page's "Register" link carries `next` on to `/register`.
 
@@ -334,8 +345,9 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files 
   session, a new one per server render). Shared defaults: queries never retry
   a 4xx except 408 and 429, everything else retries at most twice; mutations
   never retry; `staleTime` 30 s (availability overrides it, spec 22). The
-  retry rule reads a numeric `status` on the thrown error, so browser fetch
-  wrappers must throw errors that carry the HTTP status.
+  retry rule reads a numeric `status` on the thrown error; browser code
+  fetches student data only through `studentFetch` (`lib/student-api.ts`),
+  whose `StudentApiError` carries it.
 - Toasts: shadcn Sonner in `components/ui/sonner.tsx`, mounted once in the
   root layout and styled with the theme tokens (success, warning and
   destructive fills, surface for default and info). Import `toast` from
@@ -400,7 +412,7 @@ as part of the spec.
 | 12 | logout | Server action that deletes the `access` and `refresh` cookies and redirects home, triggered from the header | 10 | Implemented |
 | 13 | login-page | `/login` form (react-hook-form + Zod) using the existing `login()` action, showing field and credential errors, redirecting to the return path or `/dashboard` | 04, 07, 10 | Implemented |
 | 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Implemented |
-| 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Stub |
+| 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Implemented |
 | 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices; images: see Design › Images | 03, 10 | Stub |
 | 17 | subject-detail-page | Public `/subjects/[slug]` page rendering `GET /subjects/{slug}/` (description, levels, prices, booking CTAs); unknown slug → not-found; images: see Design › Images | 11, 16 | Stub |
 | 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, CTAs to register and book a trial; images: see Design › Images | 16 | Stub |
