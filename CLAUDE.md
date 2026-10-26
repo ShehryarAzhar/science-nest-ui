@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run dev` — dev server on http://localhost:3000 (Turbopack)
 - `npx tsc --noEmit` — type-check
 - `npm run lint` — ESLint 9 flat config (`eslint-config-next` core-web-vitals + typescript)
-- `npm run build` — production build (needs the backend running at `API_BASE_URL`: `/subjects` is prerendered from it)
+- `npm run build` — production build (needs the backend running at `API_BASE_URL`: `/subjects` and every `/subjects/<slug>` are prerendered from it, and an empty subjects list fails the build)
 
 ## No tests
 
@@ -49,7 +49,8 @@ password reset or password change.
 Booking buttons on public pages (subject detail, home) are shown to everyone,
 guests and students alike, with the same links: "Book a free trial" →
 `/trial-lesson/new` and "Book a weekly class" → `/classes/new` (with the
-subject preselected where relevant). Guests are sent to `/login?next=…` by the
+subject preselected where relevant, as `?subject=<slug>`: the slug, not the
+id; specs 25 and 28 read it). Guests are sent to `/login?next=…` by the
 proxy (spec 07), and the login page's Register link carries `next` (spec 14),
 so they return to the booking page after signing up or logging in. Never link
 guests to `/register` directly: a logged-in student would be redirected to
@@ -297,6 +298,9 @@ Browser code never calls Django directly (it has no token). It calls `app/api/st
 - On any failure it throws "Couldn't fetch subjects from API_BASE_URL. Is the backend running?" (the `ApiError` as `cause`). It never returns an error value, which would be cached for the whole cache life.
 - Pages catch that with an error boundary (`catchError` from `next/error`, e.g. `app/subjects/subjects-error-boundary.tsx`), never `try/catch`: Next still fails the build on an error caught by a boundary during prerender, and a failed runtime revalidation keeps the previous page. A `try/catch` would bake the error state into the static page.
 - `/subjects` (`app/subjects/`) shows the inline error panel only when no cached list exists; Try again calls `retry()`.
+- `/subjects/[slug]` (spec 17) finds its subject in the same list (never `GET /subjects/{slug}/`). `generateStaticParams` returns every slug, and throws a clear error on an empty list (Cache Components rejects an empty array). Slugs added later render on their first request once the list revalidates. An unknown slug (exact, case-sensitive match) → `notFound()`. The page uses `SubjectsErrorBoundary standalone` (the panel carries the `h1` and a link back to `/subjects`).
+- The one `try/catch` around `getSubjects()` is in that page's `generateMetadata` (falls back to the title "Subjects"): a throw there would show `app/error.tsx` instead of the inline panel. It's safe because the page body still throws into the boundary.
+- Shared with the list: `formatUsd()` (`lib/format-usd.ts`), `LevelBadges` and `FreeTrialNote` (`app/subjects/`).
 
 ### Backend errors
 
@@ -334,7 +338,7 @@ Spec 15. How student pages handle 401 and 403 from student endpoints:
 Tokens never reach client JS:
 
 1. `app/login/actions.ts` — server action `login({ username, password, next })`, called by the `/login` form (`app/login/login-form.tsx`, which reads `next` from the URL at submit time so the page stays static). It re-checks the input with the shared Zod schema (`app/login/schema.ts`), posts the credentials through the API client (public mode), stores `access` (270 s, 30 s before the 5-minute token expires) and `refresh` (1 day) as httpOnly, `sameSite: lax` cookies, then redirects to `safeReturnPath(next)` (`lib/return-path.ts`: same-site paths only; anything else, `/login` or `/register` → `/dashboard`). On failure it returns a `NormalizedError` (a 401 → "Invalid username or password.").
-2. `proxy.ts` — runs on pages and `/api/`; its `config.matcher` skips static files (`/_next/static`, `/_next/image`, `/images/`, `/logo/`, the app icons and any path with a file extension), so one page load makes at most one refresh call. If `access` is missing but `refresh` exists, it calls the refresh endpoint, sets the new `access` cookie on both the forwarded request (so the current render sees it) and the response. If refresh fails, it deletes both cookies and treats the request as a guest's; requests under `/api/` then get a 401 JSON `{"detail": "Your session has expired. Log in again."}` (a fetch would otherwise follow a redirect to the login page's HTML).
+2. `proxy.ts` — runs on pages and `/api/`. First, any `/subjects/…` path with uppercase letters gets a permanent (308) redirect to the same path in lowercase (query kept, percent escapes untouched, no backend call): slugs are lowercase, and a wrong-case render would otherwise share a route-cache file with the real page on case-insensitive filesystems (spec 17). Its `config.matcher` skips static files (`/_next/static`, `/_next/image`, `/images/`, `/logo/`, the app icons and any path with a file extension), so one page load makes at most one refresh call. If `access` is missing but `refresh` exists, it calls the refresh endpoint, sets the new `access` cookie on both the forwarded request (so the current render sees it) and the response. If refresh fails, it deletes both cookies and treats the request as a guest's; requests under `/api/` then get a 401 JSON `{"detail": "Your session has expired. Log in again."}` (a fetch would otherwise follow a redirect to the login page's HTML).
 3. Route protection (same file, after the refresh step). "Logged in" means an `access` cookie is present or a refresh just succeeded; the token isn't checked any further. Guests on student routes (`/dashboard`, `/account`, `/classes`, `/trial-lesson`, matched on whole segments with everything under them) are redirected to `/login?next=<path + query>`. Logged-in users on `/login` or `/register` are redirected to `/dashboard`. Every other page, including public pages after a failed refresh, loads normally.
 4. `app/login/actions.ts` — server action `logout()` deletes both cookies (path `/`) and `redirect("/")`, with no backend call. The header's form posts it directly (works without JS) and clears the TanStack Query cache on submit. Server actions post to the current URL, so a user whose cookies are already gone on a student route gets the proxy's `/login?next=…` redirect instead and the action doesn't run (they're logged out anyway).
 5. `app/api/session/end/route.ts` — POST only, deletes both cookies the same way when the student access guard ends a session the backend refused (see Student access guard).
@@ -400,6 +404,9 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files,
   `fallback` shown if loading fails (nothing otherwise), lazy by default,
   `loading="eager"` + `fetchPriority="high"` for the hero. Single `src`; a
   dark variant, if ever needed, is a second image switched with CSS.
+- `components/brand/hex-lattice.tsx` (`HexLattice`) is the one hex lattice
+  motif: a single decorative path, static in subject headers (spec 17); the
+  home hero (spec 18) adds its draw-in.
 
 ### Installed but not yet wired up
 
@@ -434,7 +441,7 @@ as part of the spec.
 | 14 | register-page | `/register` form posting to `POST /auth/users/` with all required fields and phone validation, showing DRF field errors, then continuing to login | 04, 07, 09, 10, 13 | Implemented |
 | 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Implemented |
 | 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices; images: see Design › Images | 03, 10 | Implemented |
-| 17 | subject-detail-page | Public `/subjects/[slug]` page rendering `GET /subjects/{slug}/` (description, levels, prices, booking CTAs); unknown slug → not-found; images: see Design › Images | 11, 16 | Stub |
+| 17 | subject-detail-page | Public `/subjects/[slug]` page from the cached subjects list (`getSubjects()`) (description, levels, prices, booking CTAs); unknown slug → not-found; images: see Design › Images | 11, 16 | Implemented |
 | 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, CTAs to register and book a trial; images: see Design › Images | 16 | Stub |
 | 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Stub |
 | 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Stub |

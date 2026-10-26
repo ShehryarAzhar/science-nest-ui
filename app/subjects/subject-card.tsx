@@ -2,17 +2,9 @@ import Link from "next/link"
 
 import { Logo } from "@/components/brand/logo"
 import { SpecimenImage } from "@/components/specimen-image"
+import { formatUsd } from "@/lib/format-usd"
 import type { Subject } from "@/lib/subjects"
-
-// Fixed locale so the server and browser always agree. Cents only when the
-// price isn't a whole dollar amount
-function formatUsd(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
-  }).format(amount)
-}
+import { LevelBadges } from "./level-badges"
 
 // One link per card, named by the heading inside it
 export function SubjectCard({ subject }: { subject: Subject }) {
@@ -38,16 +30,7 @@ export function SubjectCard({ subject }: { subject: Subject }) {
           }
         />
         <h2 className="text-lg">{name}</h2>
-        <ul aria-label="Levels" className="flex flex-wrap gap-2">
-          {levels.map((level) => (
-            <li
-              key={level.code}
-              className="rounded-full bg-secondary px-2.5 py-0.5 text-sm text-secondary-foreground"
-            >
-              {level.name}
-            </li>
-          ))}
-        </ul>
+        <LevelBadges levels={levels} />
         <dl className="mt-auto grid grid-cols-2 gap-4 border-t border-border pt-4">
           <div>
             <dt className="text-sm text-muted-foreground">40 min</dt>
