@@ -5,6 +5,7 @@ import { SpecimenImage } from "@/components/specimen-image"
 import { formatUsd } from "@/lib/format-usd"
 import type { Subject } from "@/lib/subjects"
 import { LevelBadges } from "./level-badges"
+import { SubjectOfferings } from "./subject-offerings"
 
 // One link per card, named by the heading inside it. h3 where the grid sits
 // under a section heading (the home page)
@@ -38,6 +39,7 @@ export function SubjectCard({
         />
         <Heading className="text-lg">{name}</Heading>
         <LevelBadges levels={levels} />
+        <SubjectOfferings levels={levels} />
         <dl className="mt-auto grid grid-cols-2 gap-4 border-t border-border pt-4">
           <div>
             <dt className="text-sm text-muted-foreground">40 min</dt>
