@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { CalendarCheckIcon, GraduationCapIcon } from "lucide-react";
+import {
+  CalendarCheckIcon,
+  CalendarClockIcon,
+  ClipboardCheckIcon,
+  GraduationCapIcon,
+  LightbulbIcon,
+  UserRoundIcon,
+} from "lucide-react";
 
 import { HexLattice } from "@/components/brand/hex-lattice";
 import { routeActionClass } from "@/components/route-state";
@@ -28,6 +35,14 @@ const STEPS = [
     title: "Join your lesson online",
     body: "Lessons run on Zoom or Google Meet. Before each one, your tutor sends the meeting link on WhatsApp to the phone number you registered with, or by email. Your dashboard shows your weekly schedule and cost in your local time.",
   },
+];
+
+// Fixed wording; not a sequence, so no numbers
+const APPROACH = [
+  { label: "Personalized 1-to-1 Classes", Icon: UserRoundIcon },
+  { label: "Clear Concepts & Strong Basics", Icon: LightbulbIcon },
+  { label: "Regular Assessments & Feedback", Icon: ClipboardCheckIcon },
+  { label: "Flexible Schedule That Suits You", Icon: CalendarClockIcon },
 ];
 
 // Plain links for everyone, with no subject chosen here
@@ -79,7 +94,7 @@ export default function HomePage() {
               biochemistry and molecular biology at university level. Start with
               a free 60-minute trial, then book weekly classes.
             </p>
-            {/* The tutor's credentials appear only here on the page */}
+            {/* The only credentials in the page content; the footer has them too */}
             <ul className="mt-6 flex flex-col gap-2">
               <li className="flex items-center gap-3">
                 <GraduationCapIcon aria-hidden className="size-5 shrink-0 text-eosin" />
@@ -123,6 +138,26 @@ export default function HomePage() {
         >
           All subjects
         </Link>
+      </section>
+
+      <section
+        aria-labelledby="approach-heading"
+        className={cn(SECTION, "border-t border-border")}
+      >
+        <h2 id="approach-heading" className="text-xl md:text-2xl">
+          What your lessons are like
+        </h2>
+        <ul className="mt-8 grid gap-6 sm:grid-cols-2 md:gap-8 lg:grid-cols-4">
+          {APPROACH.map(({ label, Icon }) => (
+            <li
+              key={label}
+              className="flex items-start gap-3 border-t border-border pt-4"
+            >
+              <Icon aria-hidden className="mt-1 size-5 shrink-0 text-primary" />
+              <span className="font-heading text-lg font-semibold">{label}</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section
