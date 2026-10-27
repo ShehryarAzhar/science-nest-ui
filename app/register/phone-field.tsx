@@ -10,6 +10,7 @@ import {
   type ComponentProps,
 } from "react"
 import { Controller, type Control } from "react-hook-form"
+import { getTimezone } from "countries-and-timezones"
 import { parsePhoneNumberFromString } from "libphonenumber-js/max"
 import PhoneInput, {
   getCountryCallingCode,
@@ -26,6 +27,7 @@ import {
 import type { RegisterFormValues } from "@/app/register/schema"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { getBrowserTimeZone } from "@/lib/time-zone"
 
 // The only importer of the phone library (with `max` metadata and the
 // bundled flags), so no other route's JavaScript carries it
@@ -35,22 +37,49 @@ const ERROR_ID = "phone_number-error"
 
 const subscribe = () => () => {}
 
-// The region of the first preferred language that has one (`en-PK` →
-// Pakistan). A bare `en` isn't expanded to a guessed region: no default is
-// better than a confident wrong one. Browser-only, so the server render (and
-// the static page) has no default
-function guessCountry() {
+// Regions of the preferred languages, in order (`en-GB` → GB). A bare `en`
+// isn't expanded to a guessed region
+function languageRegions(): Country[] {
+  const regions: Country[] = []
   for (const tag of navigator.languages ?? []) {
     try {
       const region = new Intl.Locale(tag).region
       if (region && isSupportedCountry(region)) {
-        return region
+        regions.push(region as Country)
       }
     } catch {
       // Malformed tag: try the next one
     }
   }
-  return undefined
+  return regions
+}
+
+// The country of the browser's time zone (`Asia/Karachi` → Pakistan), which
+// follows where the student is far more often than the language setting
+// does. A zone shared by several countries (`Europe/London`: GB, GG, IM, JE)
+// takes the one the language names, else its main country (listed first).
+// Zones with no country (`UTC`) fall back to the first language region, and
+// otherwise there's no default: better than a confident wrong one. No
+// network lookup. Browser-only, so the server render (and the static page)
+// has no default
+function guessCountry() {
+  const regions = languageRegions()
+  let zoneCountries: Country[] = []
+  try {
+    const countries: string[] = getTimezone(getBrowserTimeZone())?.countries ?? []
+    zoneCountries = countries.filter((country): country is Country =>
+      isSupportedCountry(country),
+    )
+  } catch {
+    // No usable time zone: use the language
+  }
+  if (zoneCountries.length > 0) {
+    return (
+      zoneCountries.find((country) => regions.includes(country)) ??
+      zoneCountries[0]
+    )
+  }
+  return regions[0]
 }
 
 // With no country selected the library treats every input as international
@@ -164,11 +193,12 @@ export function PhoneField({
                   value={field.value.startsWith("+") ? field.value : undefined}
                   onChange={(value) => field.onChange(value ?? "")}
                   onBlur={field.onBlur}
-                  // Only while the student hasn't picked one; the library
-                  // also never overrides a country chosen in the selector
-                  defaultCountry={
-                    countryField.value ? undefined : guessedCountry
-                  }
+                  // Always the same value after mount: the library applies a
+                  // default only while no country is picked and the field is
+                  // empty. Tying it to the selected country made it flip
+                  // back to undefined, which the library treats as a new
+                  // default and resets the country, looping forever
+                  defaultCountry={guessedCountry}
                   onCountryChange={(country?: Country) => {
                     countryField.onChange(country)
                     // Choosing a country turns the drafted local digits into
