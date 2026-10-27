@@ -37,6 +37,12 @@ anywhere in the app.
 Tutor credentials (fine to show in the UI): MPhil in Biochemistry and Molecular
 Biology, 8+ years of teaching experience.
 
+Lessons are online, on Zoom or Google Meet. The tutor sends the meeting link
+before each lesson, on WhatsApp to the student's registered phone number, or
+by email. The app doesn't store or show meeting links. The dashboard (spec
+21) and the trial booking confirmation (spec 28) should say how the link
+arrives.
+
 Subjects: Biology and Chemistry (O Level, A Level), Physics (O Level),
 Science (All Levels 1–O), Biochemistry (University), Molecular Biology
 (University).
@@ -232,9 +238,15 @@ Subject slugs: `biology`, `chemistry`, `physics`, `science`, `biochemistry`,
 **Rules:**
 - One shared `SpecimenImage` client component (created in spec 11) wraps
   `next/image` with string paths, never static imports.
-- A missing image never shows a broken icon. It stays hidden until it loads.
-  If it fails, the hero shows only the hex lattice, a subject image shows the
-  hex logo mark, and the other images show nothing.
+- A missing image never shows a broken icon. By default it stays hidden
+  until it loads. If it fails, the hero shows only the hex lattice, a subject
+  image shows the hex logo mark, and the other images show nothing.
+- Exception, the hero only (spec 18): it uses `SpecimenImage`'s opt-in
+  `visibleBeforeHydration` mode, so it paints as soon as it arrives, before
+  hydration and without JavaScript. A failed load is detected only after
+  hydration, so before that (or without JavaScript) the browser's own broken
+  image with alt text may show. Accepted because the hero image ships with
+  the app and showing it immediately matters more.
 - Hero: `loading="eager"` + `fetchPriority="high"` (`priority` is deprecated
   in Next 16). Everything else lazy-loads.
 
@@ -301,6 +313,7 @@ Browser code never calls Django directly (it has no token). It calls `app/api/st
 - `/subjects/[slug]` (spec 17) finds its subject in the same list (never `GET /subjects/{slug}/`). `generateStaticParams` returns every slug, and throws a clear error on an empty list (Cache Components rejects an empty array). Slugs added later render on their first request once the list revalidates. An unknown slug (exact, case-sensitive match) → `notFound()`. The page uses `SubjectsErrorBoundary standalone` (the panel carries the `h1` and a link back to `/subjects`).
 - The one `try/catch` around `getSubjects()` is in that page's `generateMetadata` (falls back to the title "Subjects"): a throw there would show `app/error.tsx` instead of the inline panel. It's safe because the page body still throws into the boundary.
 - Shared with the list: `formatUsd()` (`lib/format-usd.ts`), `LevelBadges` and `FreeTrialNote` (`app/subjects/`).
+- The home page `/` (spec 18, `app/page.tsx`) is static (no cookies) and shows the same grid through `SubjectList` (`app/subjects/subject-list.tsx`, shared with `/subjects`) with `headingLevel="h3"`, inside `SubjectsErrorBoundary` around that section only, so the rest of the page stays up. Its booking links carry no `?subject=`. The tutor's credentials appear once, in the hero.
 
 ### Backend errors
 
@@ -402,11 +415,16 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files,
   `public/images/` illustrations: string `src`, required `alt`, `width` and
   `height` (intrinsic), `className` sizes the reserved box, optional
   `fallback` shown if loading fails (nothing otherwise), lazy by default,
-  `loading="eager"` + `fetchPriority="high"` for the hero. Single `src`; a
+  `loading="eager"` + `fetchPriority="high"` for the hero. Two modes: hidden
+  until loaded (default), or `visibleBeforeHydration` (the hero only, with
+  the broken-image exception in Design › Images). Single `src`; a
   dark variant, if ever needed, is a second image switched with CSS.
 - `components/brand/hex-lattice.tsx` (`HexLattice`) is the one hex lattice
-  motif: a single decorative path, static in subject headers (spec 17); the
-  home hero (spec 18) adds its draw-in.
+  motif: a single decorative path, static by default (subject headers, spec
+  17). `drawIn` (the home hero only, spec 18) traces every hexagon at once
+  with a CSS stroke dash (`animate-lattice-draw` in `app/globals.css`,
+  800ms, once), so it also completes without JavaScript and is static under
+  reduced motion.
 
 ### Installed but not yet wired up
 
@@ -442,7 +460,7 @@ as part of the spec.
 | 15 | student-access-guard | Shared handling of student-endpoint auth failures: 401 → `/login`, 403 (admin account without a Student profile) → friendly message component | 05, 09 | Implemented |
 | 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices; images: see Design › Images | 03, 10 | Implemented |
 | 17 | subject-detail-page | Public `/subjects/[slug]` page from the cached subjects list (`getSubjects()`) (description, levels, prices, booking CTAs); unknown slug → not-found; images: see Design › Images | 11, 16 | Implemented |
-| 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, CTAs to register and book a trial; images: see Design › Images | 16 | Stub |
+| 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, "Book a free trial" and "Book a weekly class" CTAs (no register link); images: see Design › Images | 16 | Implemented |
 | 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Stub |
 | 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Stub |
 | 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book; images: see Design › Images | 06, 09, 15 | Stub |

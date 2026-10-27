@@ -10,6 +10,13 @@ import { cn } from "@/lib/utils"
 // every state, the image stays hidden until it has loaded, and a failed load
 // shows the fallback (or nothing) instead of a broken icon.
 //
+// `visibleBeforeHydration` is for the home hero only: the image isn't hidden
+// in the server HTML, so it paints as soon as it arrives, before hydration
+// and without JavaScript. next/image replays a load or error from before
+// hydration, so a failure still swaps to the fallback afterwards. Until then
+// (or without JavaScript) a failed load shows the browser's own broken image,
+// an accepted exception for the hero, whose image ships with the app.
+//
 // Single src for now. If an image later needs <name>-dark.webp, add an
 // optional dark src then: render both images and switch with CSS
 // (dark:hidden / hidden dark:block), never a JavaScript theme check
@@ -26,6 +33,7 @@ export function SpecimenImage({
   fallback = null,
   loading = "lazy",
   fetchPriority,
+  visibleBeforeHydration = false,
 }: {
   src: string
   alt: string
@@ -37,8 +45,10 @@ export function SpecimenImage({
   fallback?: ReactNode
   loading?: "lazy" | "eager"
   fetchPriority?: "high" | "low" | "auto"
+  visibleBeforeHydration?: boolean
 }) {
   const [status, setStatus] = useState<Status>("loading")
+  const hidden = status === "loading" && !visibleBeforeHydration
 
   return (
     <div
@@ -56,11 +66,8 @@ export function SpecimenImage({
           sizes={sizes}
           loading={loading}
           fetchPriority={fetchPriority}
-          aria-hidden={status === "loading" || undefined}
-          className={cn(
-            "size-full object-contain",
-            status === "loading" && "invisible",
-          )}
+          aria-hidden={hidden || undefined}
+          className={cn("size-full object-contain", hidden && "invisible")}
           // next/image replays loads that finished before hydration, and a
           // broken image also counts as complete, so check it has pixels
           onLoad={(event) =>

@@ -134,6 +134,34 @@
   --elevation: 0 12px 32px -12px rgb(0 0 0 / 0.6);
 }
 
+/* Home hero lattice draw-in (spec 18), the app's one motion moment. Runs
+   once. Each hexagon traces its outline from one dash of --lattice-cell (its
+   on-screen perimeter, set by HexLattice). Neighbours share edges, so the
+   lattice looks whole once every cell has traced half: that visible half
+   gets 92% of the time, and the last 8% closes the outer edges of the border
+   cells. Fill mode backwards: the dash exists only while it runs, so the
+   resting lattice is exactly the static one */
+@theme {
+  --animate-lattice-draw: lattice-draw 800ms linear backwards;
+
+  @keyframes lattice-draw {
+    0% {
+      stroke-dasharray: var(--lattice-cell) var(--lattice-cell);
+      stroke-dashoffset: var(--lattice-cell);
+      animation-timing-function: ease-out;
+    }
+    92% {
+      stroke-dasharray: var(--lattice-cell) var(--lattice-cell);
+      stroke-dashoffset: calc(var(--lattice-cell) / 2);
+      animation-timing-function: linear;
+    }
+    100% {
+      stroke-dasharray: var(--lattice-cell) var(--lattice-cell);
+      stroke-dashoffset: 0;
+    }
+  }
+}
+
 /* Home hero headline (spec 18); the page sets the size */
 @utility heading-hero {
   font-weight: 700;

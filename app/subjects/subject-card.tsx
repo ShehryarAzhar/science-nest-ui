@@ -6,8 +6,15 @@ import { formatUsd } from "@/lib/format-usd"
 import type { Subject } from "@/lib/subjects"
 import { LevelBadges } from "./level-badges"
 
-// One link per card, named by the heading inside it
-export function SubjectCard({ subject }: { subject: Subject }) {
+// One link per card, named by the heading inside it. h3 where the grid sits
+// under a section heading (the home page)
+export function SubjectCard({
+  subject,
+  headingLevel: Heading = "h2",
+}: {
+  subject: Subject
+  headingLevel?: "h2" | "h3"
+}) {
   const { name, slug, levels, price_40_min, price_60_min } = subject
 
   return (
@@ -29,7 +36,7 @@ export function SubjectCard({ subject }: { subject: Subject }) {
             </div>
           }
         />
-        <h2 className="text-lg">{name}</h2>
+        <Heading className="text-lg">{name}</Heading>
         <LevelBadges levels={levels} />
         <dl className="mt-auto grid grid-cols-2 gap-4 border-t border-border pt-4">
           <div>
