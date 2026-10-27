@@ -25,7 +25,12 @@ import {
   type CountrySelectExtraProps,
 } from "@/app/register/country-combobox"
 import type { RegisterFormValues } from "@/app/register/schema"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { getBrowserTimeZone } from "@/lib/time-zone"
 
@@ -34,6 +39,7 @@ import { getBrowserTimeZone } from "@/lib/time-zone"
 
 const NUMBER_ID = "phone_number"
 const ERROR_ID = "phone_number-error"
+const HINT_ID = "phone_number-hint"
 
 const subscribe = () => () => {}
 
@@ -229,7 +235,10 @@ export function PhoneField({
                   id={NUMBER_ID}
                   autoComplete="tel"
                   aria-invalid={!!numberError}
-                  aria-describedby={numberError ? ERROR_ID : undefined}
+                  // The hint first, then the error when there is one
+                  aria-describedby={
+                    numberError ? `${HINT_ID} ${ERROR_ID}` : HINT_ID
+                  }
                   containerComponentProps={{ ref: anchorRef }}
                   className={cn(
                     "flex h-11 w-full items-stretch overflow-hidden rounded-md border border-input bg-card transition-[color,box-shadow]",
@@ -243,6 +252,10 @@ export function PhoneField({
           />
         )}
       />
+      {/* Class links arrive on WhatsApp (see CLAUDE.md › About the app) */}
+      <FieldDescription id={HINT_ID}>
+        We&apos;ll send your class links to this number on WhatsApp.
+      </FieldDescription>
       <FieldError id={ERROR_ID} className="whitespace-pre-line">
         {error}
       </FieldError>
