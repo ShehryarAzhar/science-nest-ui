@@ -36,7 +36,8 @@ students see the same content.
 - **Hero:**
   - a headline (`h1`, Source Serif 4 700, -0.01em, using the existing
     `heading-hero` utility in `app/globals.css`) and one short pitch line
-  - the tutor's credentials, the only place on the page they appear: MPhil
+  - the tutor's credentials, the only place in the page content they
+    appear (the site footer from spec 10 also lists them on every page): MPhil
     in Biochemistry and Molecular Biology, 8+ years of teaching experience.
     One short plain line (or a two-item list) between the pitch and the
     booking buttons, where it backs up the decision to book. No name, no
@@ -73,6 +74,17 @@ students see the same content.
     `/subjects`, using `SubjectsErrorBoundary` (`catchError`, never
     `try/catch`) around this section only. The hero, how it
     works and closing band stay visible.
+- **Teaching approach (follow-up, 2026-10-27):** a section between the
+  subjects overview and "How it works", headed "What your lessons are like"
+  (`h2`). It holds four points with exactly this wording: "Personalized
+  1-to-1 Classes", "Clear Concepts & Strong Basics", "Regular Assessments &
+  Feedback", "Flexible Schedule That Suits You".
+  - A plain `<ul>`, not numbered (it isn't a sequence) and not cards: each
+    point has a thin top border, a decorative primary lucide icon and its
+    label in Source Serif 4 600.
+  - Four columns on large screens, two from `sm`, one on mobile.
+  - No supporting text: anything beyond the points would only repeat them,
+    and no new claims, numbers or testimonials are added.
 - **How it works:** three short static steps, text only (lucide icons are
   fine, no images), in this order:
   1. Book a free 60-minute trial lesson.
@@ -232,8 +244,9 @@ dates or times.
 - [x] With JavaScript disabled in DevTools, a reload of `/` shows the hero image _(verified in code — check in browser)_
 - [x] On a reload with a slow network (DevTools throttling, e.g. Slow 4G), the hero image appears as soon as it has downloaded, without waiting for the page's scripts to load and hydrate _(verified in code — check in browser)_
 - [x] Subject card images on `/`, `/subjects` and `/subjects/<slug>` still stay hidden until loaded and fall back to the hex logo mark, as before _(verified in code — check in browser)_
-- [x] The two credentials appear exactly once on the page (in the hero), there's no separate credentials section, and no tutor name, photo, rating or testimonial appears anywhere
+- [x] The two credentials appear exactly once in the page content (in the hero; the site-wide footer from spec 10 is separate), there's no separate credentials section, and no tutor name, photo, rating or testimonial appears anywhere _(verified in code — check in browser)_
 - [x] The subjects overview lists every subject from `/subjects`, in the same order, with the same cards (image, name, levels, 40/60-minute prices), each linking to `/subjects/<slug>`, plus a link to `/subjects` and the free-trial line _(verified in code — check in browser)_
+- [x] Between the subjects overview and "How it works", a "What your lessons are like" section lists exactly "Personalized 1-to-1 Classes", "Clear Concepts & Strong Basics", "Regular Assessments & Feedback" and "Flexible Schedule That Suits You" as an unnumbered list, with no other claims, and reads correctly in light and dark themes and at 375px _(verified in code — check in browser)_
 - [x] "How it works" shows the three steps as an ordered list; step 3 says lessons run on Zoom or Google Meet and the link arrives before each lesson on WhatsApp (registered phone number) or by email
 - [x] The closing band repeats both booking buttons
 - [x] Every "Book a free trial" links to `/trial-lesson/new` and every "Book a weekly class" links to `/classes/new`, for guests and students alike
