@@ -2,7 +2,7 @@
 
 - **Status:** Done
 - **Created:** 2026-10-26
-- **Completed:** 2026-10-26
+- **Completed:** 2026-10-27
 - **Depends on:** 04-drf-error-handling.md, 07-route-protection.md, 09-query-provider.md, 10-app-shell-navigation.md, 13-login-page.md
 
 ## Summary
@@ -97,16 +97,20 @@ their username filled in, and logs in there.
     other page's JavaScript grows. A shared, generic Combobox UI component in
     `components/ui/` is fine; anything phone-specific lives with the register
     page
-- **Default country (decision):** preselect the country from the region
-  subtag of the browser's preferred languages (`navigator.languages`, first
-  entry that has a region the library supports, e.g. `en-PK` → Pakistan,
-  `ur-PK` → Pakistan, `en-GB` → United Kingdom). If no entry has a region
-  (e.g. just `en`), preselect nothing: the selector shows "Country" and the
+- **Default country (decision, revised):** preselect the country of the
+  browser's time zone (`Asia/Karachi` → Pakistan), looked up in a bundled
+  time-zone → country table (`countries-and-timezones`, about 10 kB gzipped,
+  register page only). A zone shared by several countries (`Europe/London`:
+  GB, GG, IM, JE) takes the one the browser's language region names, else
+  its main country. A zone with no country (`UTC`) falls back to the region
+  of the first preferred language that has one (`en-GB` → United Kingdom);
+  with neither, preselect nothing: the selector shows "Country" and the
   student picks one, or types a `+` number. Reasons:
-  - it costs nothing: no geo-IP lookup (which would be an external request
-    and send the student's IP to a third party), and no time-zone → country
-    table (which would add more data to the bundle and is often wrong near
-    borders)
+  - the time zone follows where the student is far more often than the
+    language setting does (many browsers in Pakistan are set to `en-GB` or
+    `en-US`, which made the first, language-only rule preselect the UK)
+  - no geo-IP lookup: no external request, and the student's IP isn't sent
+    to a third party
   - a language without a region isn't expanded to a guessed one (`en` would
     become US), because a confident wrong default is worse than an empty one
   - a wrong guess is visible (flag and name in the selector) and corrected in
@@ -298,7 +302,7 @@ Not applicable.
 - [x] An invalid email shows "Enter a valid email address." _(verified in code — check in browser)_
 - [x] Different passwords show "Passwords don't match." under the confirm field; making them equal clears it _(verified in code — check in browser)_
 - [x] Both password fields have a working show/hide toggle whose accessible name changes with it _(verified in code — check in browser)_
-- [x] With browser language `en-PK`, the selector starts on Pakistan; with plain `en`, it starts empty and shows "Country" _(verified in code — check in browser)_
+- [x] With the browser time zone `Asia/Karachi`, the selector starts on Pakistan even when the browser language is `en-GB`; with time zone `UTC` and plain `en`, it starts empty and shows "Country" _(verified in code — check in browser)_
 - [x] Searching the country list by "pak", "PK", "92" and "+92" each finds Pakistan; a nonsense search shows "No country found" _(verified in code — check in browser)_
 - [x] The country list works by keyboard alone (open, filter, move, select, Escape), and focus moves to the number input after choosing _(verified in code — check in browser)_
 - [x] With Pakistan selected, `3001234567` is accepted, and `3001234` or `1234567890` shows "Enter a valid phone number for Pakistan." _(verified in code — check in browser)_
