@@ -1,40 +1,12 @@
 import type { Metadata } from "next";
-import { BookOpenIcon } from "lucide-react";
 
-import { getSubjects } from "@/lib/subjects";
 import { FreeTrialNote } from "./free-trial-note";
-import { SubjectCard } from "./subject-card";
+import { SubjectList } from "./subject-list";
 import { SubjectsErrorBoundary } from "./subjects-error-boundary";
-import { SubjectsPanel } from "./subjects-panel";
 
 export const metadata: Metadata = {
   title: "Subjects",
 };
-
-// Prerendered from the cached subjects list. getSubjects() throws on
-// failure, and the boundary turns that into an inline panel at request time
-async function SubjectList() {
-  const subjects = await getSubjects();
-
-  if (subjects.length === 0) {
-    return (
-      <SubjectsPanel
-        icon={<BookOpenIcon aria-hidden className="size-5 shrink-0" />}
-        heading="No subjects yet"
-      >
-        <p>No subjects are listed yet. Check back soon.</p>
-      </SubjectsPanel>
-    );
-  }
-
-  return (
-    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
-      {subjects.map((subject) => (
-        <SubjectCard key={subject.id} subject={subject} />
-      ))}
-    </ul>
-  );
-}
 
 export default function SubjectsPage() {
   return (

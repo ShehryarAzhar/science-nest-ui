@@ -2,8 +2,8 @@ import { cn } from "@/lib/utils"
 
 // The nest motif (CLAUDE.md › Design › Motif): a thin pointy-top hexagon
 // lattice in low-opacity primary, only for the home hero and subject
-// headers. One path, built once, so instances never share ids and the home
-// hero (spec 18) can draw it in with a stroke dash. Static here
+// headers. One path, built once, so instances never share ids. Static by
+// default; `drawIn` is for the home hero only (the app's one motion moment)
 
 const R = 24 // circumradius
 const W = Math.sqrt(3) * R
@@ -31,19 +31,44 @@ const LATTICE_PATH = (() => {
   return cells.join(" ")
 })()
 
-export function HexLattice({ className }: { className?: string }) {
+// Draw-in: every hexagon traces its outline from one dash as long as its
+// perimeter on screen. The stroke doesn't scale (1px), so neither do its
+// dashes: the length comes from the svg's rendered scale, read with
+// container units (the svg is the size container). The dash exists only
+// while the animation runs, so the finished lattice is the static one
+const DRAW_IN_CELL = `calc(max(100cqw / ${VIEW_W}, 100cqh / ${VIEW_H}) * ${6 * R})`
+
+export function HexLattice({
+  className,
+  drawIn = false,
+}: {
+  className?: string
+  drawIn?: boolean
+}) {
   return (
     <svg
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
       preserveAspectRatio="xMidYMid slice"
       aria-hidden
       focusable="false"
-      className={cn("pointer-events-none opacity-20 dark:opacity-25", className)}
+      className={cn(
+        "pointer-events-none opacity-20 dark:opacity-25",
+        drawIn && "[container-type:size]",
+        className,
+      )}
     >
       <path
         d={LATTICE_PATH}
         fill="none"
-        className="stroke-primary"
+        className={cn(
+          "stroke-primary",
+          drawIn && "animate-lattice-draw motion-reduce:animate-none",
+        )}
+        style={
+          drawIn
+            ? ({ "--lattice-cell": DRAW_IN_CELL } as React.CSSProperties)
+            : undefined
+        }
         strokeWidth={1}
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"

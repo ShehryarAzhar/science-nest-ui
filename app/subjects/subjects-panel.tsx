@@ -11,7 +11,7 @@ export function SubjectsPanel({
 }: {
   icon: ReactNode
   heading: string
-  headingLevel?: "h1" | "h2"
+  headingLevel?: "h1" | "h2" | "h3"
   children: ReactNode
   role?: "alert"
 }) {
