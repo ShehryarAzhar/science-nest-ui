@@ -2,7 +2,7 @@
 
 - **Status:** Done
 - **Created:** 2026-10-26
-- **Completed:** 2026-10-26
+- **Completed:** 2026-10-27
 - **Depends on:** 03-backend-api-client.md, 10-app-shell-navigation.md
 
 ## Summary
@@ -52,6 +52,15 @@ the 404 page and later the home page already link here.
   - the subject name as a heading
   - its levels as badges, using each level's `name` from the API (e.g.
     "O Level", "All Levels (1-O Level)")
+  - what the subject offers, from fixed frontend labels per level code (not
+    backend data), merged across the subject's levels without duplicates,
+    in this order, and shown as a checked list below the level badges so it
+    isn't mistaken for them:
+    - `o_level` and/or `a_level`: "Exam Preparation", "Past Papers",
+      "Notes & Practice"
+    - `all_levels`: "Exam Preparation", "Notes & Practice"
+    - `university`: "Research Guidance", "Assignments Help"
+    - an unknown level code adds nothing; with no labels, the list is left out
   - the 40-minute and 60-minute prices in USD, labelled with their
     duration, in tabular figures
   - a link to `/subjects/<slug>` covering the card (one link per card, named
@@ -183,6 +192,7 @@ Not applicable.
 - [x] The "Subjects" nav link is marked as the current page on `/subjects` _(verified in code — check in browser)_
 - [x] Every subject from `GET /subjects/` appears once, in the backend's order _(verified in code — check in browser)_
 - [x] Each card shows the subject name, all its level names as badges, and both the 40-minute and 60-minute prices in USD with duration labels _(verified in code — check in browser)_
+- [x] Each card lists what the subject offers for its levels (O/A Level: Exam Preparation, Past Papers, Notes & Practice; All Levels: Exam Preparation, Notes & Practice; University: Research Guidance, Assignments Help), once each, as a checked list below the level badges that looks different from them, on `/subjects` and the home page _(verified in code — check in browser)_
 - [x] Prices use tabular figures and show cents only when the price isn't a whole dollar amount _(verified in code — check in browser)_
 - [x] Each card's illustration loads from `/images/subjects/<slug>.webp` with an empty `alt`, and below-the-fold images lazy-load _(verified in code — check in browser)_
 - [x] With a subject image blocked in DevTools, its card shows the hex logo mark, with no broken icon and no layout shift _(verified in code — check in browser)_
