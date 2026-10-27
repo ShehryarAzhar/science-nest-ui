@@ -286,6 +286,10 @@ Not applicable.
 - On phones the list opens full width of the field with a height that leaves
   room for the on-screen keyboard; the search input is at least 16px text so
   iOS doesn't zoom, as are all inputs.
+- Under the phone field, a muted 14px hint: "We'll send your class links to
+  this number on WhatsApp." (the tutor sends meeting links there, see
+  CLAUDE.md › About the app). It's linked to the number input with
+  `aria-describedby`, and an error shows below it.
 - Errors directly under their field in destructive text (14px). Form-level
   message above the submit button with an alert icon. Full-width primary
   "Create account" button, 10px radius.
@@ -315,6 +319,7 @@ Not applicable.
 - [x] Other pages (`/`, `/login`) don't load the phone library, its metadata or the flags (checked in the Network tab or build output)
 - [x] A username that already exists shows the backend's message under the username field and keeps every value _(verified in code — check in browser)_
 - [x] A weak password (e.g. `12345678`) shows the backend's password messages under the password field _(verified in code — check in browser)_
+- [x] Under the phone field, the hint "We'll send your class links to this number on WhatsApp." shows in muted text, is announced with the number input, and any phone error shows below it _(verified in code — check in browser)_
 - [x] A backend error on `phone_number` shows under the phone field _(verified in code — check in browser)_
 - [x] While submitting, the button is disabled and reads "Creating account…"; a double-click sends one request _(verified in code — check in browser)_
 - [x] A successful registration lands on `/login` with "Account created. Log in to continue.", the username filled in and the password focused; the password never appears in the URL _(verified in code — check in browser)_
