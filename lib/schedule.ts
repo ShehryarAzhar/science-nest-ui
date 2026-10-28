@@ -6,7 +6,8 @@ import { studentFetch, StudentApiError } from "@/lib/student-api";
 import { parseStartsAt, parseUtcTime, parseWeekday } from "@/lib/time-zone";
 
 // GET /schedule/ for Client Components (it fetches through studentFetch).
-// Booking, edit, delete and cancel (specs 25–31) invalidate scheduleQueryKey
+// Booking, edit, delete and cancel (specs 25–31) invalidate scheduleQueryKey.
+// Also GET /classes/{id}/ for the edit page (spec 26)
 
 // Checked here rather than at render: a TimeValueError thrown while
 // rendering would skip the page's error panel and reach app/error.tsx
@@ -59,6 +60,11 @@ export type ScheduleWeeklyClass = z.infer<typeof weeklyClassSchema>;
 export type ScheduleTrialLesson = z.infer<typeof trialLessonSchema>;
 export type Schedule = z.infer<typeof scheduleSchema>;
 
+// GET /classes/{id}/ returns the weekly class fields without a price
+const weeklyClassDetailSchema = weeklyClassSchema.omit({ price: true });
+
+export type WeeklyClassDetail = z.infer<typeof weeklyClassDetailSchema>;
+
 export const scheduleQueryKey = ["schedule"] as const;
 
 export function scheduleQueryOptions() {
@@ -69,15 +75,37 @@ export function scheduleQueryOptions() {
         signal,
       });
       const parsed = scheduleSchema.safeParse(body);
-      if (!parsed.success) {
-        // Never Zod's own text
-        throw new StudentApiError("GET", {
-          kind: "invalid_response",
-          status: null,
-          fieldErrors: {},
-          formErrors: [GENERIC_ERROR_MESSAGE],
-        });
-      }
+      if (!parsed.success) throw invalidResponse();
+      return parsed.data;
+    },
+  });
+}
+
+function invalidResponse() {
+  // Never Zod's own text
+  return new StudentApiError("GET", {
+    kind: "invalid_response",
+    status: null,
+    fieldErrors: {},
+    formErrors: [GENERIC_ERROR_MESSAGE],
+  });
+}
+
+export function weeklyClassQueryKey(id: number) {
+  return ["classes", id] as const;
+}
+
+// A 404 (deleted, or another student's) isn't retried: the shared retry rule
+// skips 4xx
+export function weeklyClassQueryOptions(id: number) {
+  return queryOptions({
+    queryKey: weeklyClassQueryKey(id),
+    queryFn: async ({ signal }) => {
+      const body = await studentFetch<unknown>(`/api/student/classes/${id}`, {
+        signal,
+      });
+      const parsed = weeklyClassDetailSchema.safeParse(body);
+      if (!parsed.success) throw invalidResponse();
       return parsed.data;
     },
   });

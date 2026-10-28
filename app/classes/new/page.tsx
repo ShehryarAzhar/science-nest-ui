@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 
 import { SubjectsErrorBoundary } from "@/app/subjects/subjects-error-boundary";
 import { getSubjects } from "@/lib/subjects";
-import { BookWeeklyClassForm } from "./book-weekly-class-form";
-import { BookingShell } from "./booking-shell";
+import { BookingShell } from "../booking-shell";
+import { WeeklyClassForm } from "../weekly-class-form";
 
 export const metadata: Metadata = {
   title: "Book a weekly class",
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 // Availability, local times and `?subject=` are read in the browser
 async function BookingForm() {
   const subjects = await getSubjects();
-  return <BookWeeklyClassForm subjects={subjects} />;
+  return <WeeklyClassForm subjects={subjects} />;
 }
 
 // The shell is a Client Component so a 403 from availability can replace
@@ -22,7 +22,7 @@ async function BookingForm() {
 // and shows the subjects panel in place of the form
 export default function BookWeeklyClassPage() {
   return (
-    <BookingShell>
+    <BookingShell heading="Book a weekly class">
       <SubjectsErrorBoundary>
         <BookingForm />
       </SubjectsErrorBoundary>

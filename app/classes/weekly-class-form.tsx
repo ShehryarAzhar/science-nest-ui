@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -36,20 +37,30 @@ import {
 } from "@/lib/drf-errors"
 import { applyServerErrors } from "@/lib/form-errors"
 import { formatUsd } from "@/lib/format-usd"
-import { scheduleQueryKey } from "@/lib/schedule"
+import {
+  scheduleQueryKey,
+  weeklyClassQueryKey,
+  type WeeklyClassDetail,
+} from "@/lib/schedule"
 import { StudentApiError, studentFetch } from "@/lib/student-api"
 import type { Subject } from "@/lib/subjects"
 import { isNoStudentProfileError } from "@/lib/student-access"
 import type { ClassDuration, WeeklySlotUtc } from "@/lib/time-zone"
 import { useLocationSearch } from "@/lib/use-location-search"
 
-// Spec 25. Subject, level, duration and a weekly UTC slot, posted through
-// the student API proxy. Subjects come from the server; availability, local
-// times and `?subject=` only exist in the browser
+// Specs 25 and 26. Subject, level, duration and a weekly UTC slot, posted
+// (booking) or patched (editing) through the student API proxy. Subjects
+// come from the server; availability, local times and `?subject=` only exist
+// in the browser
 
 // On-screen order: the first one with an error gets focus
 const FIELDS = ["subject", "level", "duration", "slot"] as const
 const DURATIONS: readonly ClassDuration[] = [40, 60]
+
+const LABELS = {
+  book: { submit: "Book weekly class", pending: "Booking…", done: "Weekly class booked." },
+  edit: { submit: "Save changes", pending: "Saving…", done: "Weekly class updated." },
+}
 
 type WeeklyClassRequest = {
   subject: number
@@ -92,6 +103,55 @@ function withoutMessage(
     : null
 }
 
+// The loaded class as the form's starting values, checked against the
+// current subject list: a subject no longer listed, or a level the subject
+// no longer offers, starts unchosen (a single level is picked, as when
+// choosing the subject)
+function prefill(
+  editing: WeeklyClassDetail | undefined,
+  subjects: readonly Subject[],
+): WeeklyClassFormInput {
+  if (!editing) return { subject: null, level: null, duration: null, slot: null }
+  const subject = subjects.find(({ id }) => id === editing.subject.id)
+  let level: string | null = null
+  if (subject?.levels.some(({ code }) => code === editing.level.code)) {
+    level = editing.level.code
+  } else if (subject?.levels.length === 1) {
+    level = subject.levels[0].code
+  }
+  return {
+    subject: subject ? subject.id : null,
+    level,
+    duration: editing.duration,
+    slot: { day: editing.day, time: editing.time },
+  }
+}
+
+// The class as just saved, from the values sent, so a page shown again
+// starts from it rather than from the class as first loaded
+function savedClass(
+  editing: WeeklyClassDetail,
+  values: WeeklyClassValues,
+  subjects: readonly Subject[],
+): WeeklyClassDetail | undefined {
+  const subject = subjects.find(({ id }) => id === values.subject)
+  const level = subject?.levels.find(({ code }) => code === values.level)
+  if (!subject || !level) return undefined
+  return {
+    id: editing.id,
+    subject: {
+      id: subject.id,
+      name: subject.name,
+      slug: subject.slug,
+      levels: subject.levels.map(({ code, name }) => ({ code, name })),
+    },
+    level: { code: level.code, name: level.name },
+    day: values.slot.day,
+    time: values.slot.time,
+    duration: values.duration,
+  }
+}
+
 function normalized(error: unknown): NormalizedError {
   return error instanceof StudentApiError
     ? error.normalized
@@ -103,17 +163,20 @@ function normalized(error: unknown): NormalizedError {
       }
 }
 
-export function BookWeeklyClassForm({
+export function WeeklyClassForm({
   subjects,
+  editing,
 }: {
   subjects: readonly Subject[]
+  // The class being edited (spec 26); booking when absent
+  editing?: WeeklyClassDetail
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const schema = useMemo(() => weeklyClassFormSchema(subjects), [subjects])
   const form = useForm<WeeklyClassFormInput, unknown, WeeklyClassValues>({
     resolver: zodResolver(schema),
-    defaultValues: { subject: null, level: null, duration: null, slot: null },
+    defaultValues: prefill(editing, subjects),
   })
   const {
     control,
@@ -127,11 +190,22 @@ export function BookWeeklyClassForm({
   })
   const subject = subjects.find(({ id }) => id === subjectId)
 
-  const { query: availability, slotAvailability } = useWeeklyAvailability()
+  // The class's slot as loaded stays selectable ("Yours"), even after
+  // another one is picked
+  const { query: availability, slotAvailability } = useWeeklyAvailability({
+    ownSlot: editing && { day: editing.day, time: editing.time },
+  })
 
+  const editingId = editing?.id
+  const labels = editingId === undefined ? LABELS.book : LABELS.edit
   const mutation = useMutation({
     mutationFn: (body: WeeklyClassRequest) =>
-      studentFetch<unknown>("/api/student/classes", { method: "POST", body }),
+      editingId === undefined
+        ? studentFetch<unknown>("/api/student/classes", { method: "POST", body })
+        : studentFetch<unknown>(`/api/student/classes/${editingId}`, {
+            method: "PATCH",
+            body,
+          }),
   })
   // Stays true through the navigation to the dashboard, so the form can't
   // post twice. A ref, since two quick clicks land before a re-render
@@ -157,18 +231,46 @@ export function BookWeeklyClassForm({
   )
 
   // `?subject=<slug>` from a subject page, once, after mount (the page is
-  // static). An unknown slug, or a subject already picked, changes nothing
+  // static). An unknown slug, or a subject already picked, changes nothing.
+  // Booking only
   const slug = useLocationSearch().get("subject")
   const preselected = useRef(false)
   useEffect(() => {
-    if (preselected.current || !slug) return
+    if (editingId !== undefined || preselected.current || !slug) return
     preselected.current = true
     const match = subjects.find((s) => s.slug === slug)
     if (match && getValues("subject") === null) selectSubject(match.id)
-  }, [slug, subjects, getValues, selectSubject])
+  }, [editingId, slug, subjects, getValues, selectSubject])
+
+  // The values of a successful save, until the page is hidden. With Cache
+  // Components, Next keeps a page left behind in React's <Activity> and
+  // shows it again with its state, so without this a later visit would find
+  // the form still pending ("Saving…") with the old values. Reset when the
+  // page is hidden, per node_modules/next/dist/docs/01-app/02-guides/
+  // preserving-ui-state.md. An unsaved draft is kept
+  const saved = useRef<WeeklyClassValues | null>(null)
+  const { reset: resetMutation } = mutation
+  const { reset: resetForm } = form
+  useLayoutEffect(
+    () => () => {
+      const values = saved.current
+      if (!values) return
+      saved.current = null
+      submitting.current = false
+      preselected.current = false
+      resetMutation()
+      setSlotTaken(false)
+      const next = editing && savedClass(editing, values, subjects)
+      // The edit page renders from this query, so `editing` (and the own
+      // slot) become the saved class too
+      if (next) queryClient.setQueryData(weeklyClassQueryKey(next.id), next)
+      resetForm(prefill(next ?? editing, subjects))
+    },
+    [editing, subjects, queryClient, resetMutation, resetForm],
+  )
 
   // The picker only sends null when a refetch shows the selected slot as
-  // taken. Not while booking: the new class itself comes back as "mine"
+  // taken. Not while saving: the class itself comes back as "mine"
   const handleSlotChange = useCallback(
     (slot: WeeklySlotUtc | null) => {
       if (submitting.current) return
@@ -178,7 +280,7 @@ export function BookWeeklyClassForm({
     [form.formState, setValue],
   )
 
-  async function book(values: WeeklyClassValues) {
+  async function save(values: WeeklyClassValues) {
     if (submitting.current) return
     submitting.current = true
     setSlotTaken(false)
@@ -211,7 +313,7 @@ export function BookWeeklyClassForm({
     }
 
     // Marked stale without refetching here: a refetch now would show the
-    // new class as "mine" in the picker and flash the taken notice. Both
+    // saved class as "mine" in the picker and flash the taken notice. They
     // refetch on their next mount
     void queryClient.invalidateQueries({
       queryKey: scheduleQueryKey,
@@ -221,14 +323,21 @@ export function BookWeeklyClassForm({
       queryKey: availabilityQueryKey,
       refetchType: "none",
     })
-    toast.success("Weekly class booked.")
+    if (editingId !== undefined) {
+      void queryClient.invalidateQueries({
+        queryKey: weeklyClassQueryKey(editingId),
+        refetchType: "none",
+      })
+    }
+    saved.current = values
+    toast.success(labels.done)
     router.push("/dashboard")
   }
 
-  // handleSubmit is called per event, not during render: `book` reads the
+  // handleSubmit is called per event, not during render: `save` reads the
   // submitting ref
   const onSubmit = (event: FormEvent<HTMLFormElement>) =>
-    form.handleSubmit(book)(event)
+    form.handleSubmit(save)(event)
 
   const serverMessage = errors.root?.server?.message
   // A 403 replaces the page (BookingShell); other failures with nothing
@@ -426,7 +535,7 @@ export function BookWeeklyClassForm({
           disabled={pending}
           className="h-11 w-full text-base sm:w-auto sm:self-start sm:px-6"
         >
-          {pending ? "Booking…" : "Book weekly class"}
+          {pending ? labels.pending : labels.submit}
         </Button>
       </div>
     </form>
