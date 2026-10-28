@@ -1,25 +1,31 @@
 import type { CSSProperties } from "react"
 import Link from "next/link"
+import { Trash2Icon } from "lucide-react"
 
 import { formatUsd } from "@/lib/format-usd"
 import { formatTimeOfDay, formatTimeRange, formatWeekday, WEEKDAYS } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
-import { editClassLabel } from "./edit-class-link"
+import { deleteClassLabel, editClassLabel } from "./edit-class-link"
 import type { LocalClass, LocalSchedule } from "./local-schedule"
 
 // Tall enough that a 40-minute block (62px after its 2px gap) holds all three
 // lines at leading-tight with py-0.5 (about 57px): subject, time, level and
 // price. A shorter hour clips the last line, so the Edit link is the
-// subject name stretched over the whole block rather than a fourth line
+// subject name stretched over the whole block rather than a fourth line, and
+// Delete (spec 27) is an icon in the corner, above the stretched link
 const HOUR_PX = 96
 const COLUMNS = "grid-cols-[4.5rem_repeat(7,minmax(0,1fr))]"
+
+type OnDelete = (item: LocalClass, opener: HTMLElement) => void
 
 function ClassBlock({
   item,
   firstHour,
+  onDelete,
 }: {
   item: LocalClass
   firstHour: number
+  onDelete: OnDelete
 }) {
   const { weeklyClass, local, startMinutes, endMinutes, lane, lanes } = item
   const style: CSSProperties = {
@@ -34,7 +40,7 @@ function ClassBlock({
       style={style}
       className="absolute overflow-hidden rounded-sm border-l-[3px] border-primary bg-secondary px-2 py-0.5 text-sm leading-tight text-secondary-foreground has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50"
     >
-      <p className="truncate font-semibold">
+      <p className="truncate pr-6 font-semibold">
         <Link
           href={`/classes/${weeklyClass.id}/edit`}
           aria-label={editClassLabel(weeklyClass, local)}
@@ -43,6 +49,16 @@ function ClassBlock({
           {weeklyClass.subject.name}
         </Link>
       </p>
+      {/* Inside the block, so the ring is inset: the block clips overflow */}
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-label={deleteClassLabel(weeklyClass, local)}
+        onClick={(event) => onDelete(item, event.currentTarget)}
+        className="absolute top-0.5 right-0.5 z-10 inline-flex size-6 items-center justify-center rounded-md text-destructive outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-inset"
+      >
+        <Trash2Icon aria-hidden className="size-3.5" />
+      </button>
       <p className="truncate tabular-nums">
         {formatTimeRange(local.hour, local.minute, weeklyClass.duration)}
       </p>
@@ -58,9 +74,11 @@ function ClassBlock({
 // to the latest end. Hour labels wrap past midnight
 export function WeekGrid({
   schedule,
+  onDelete,
   className,
 }: {
   schedule: LocalSchedule
+  onDelete: OnDelete
   className?: string
 }) {
   const { days, firstHour, lastHour } = schedule
@@ -113,6 +131,7 @@ export function WeekGrid({
                       key={item.weeklyClass.id}
                       item={item}
                       firstHour={firstHour}
+                      onDelete={onDelete}
                     />
                   ))}
                 </ul>

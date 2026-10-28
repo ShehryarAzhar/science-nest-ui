@@ -1,13 +1,14 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 
 import { formatUsd } from "@/lib/format-usd"
 import type { Schedule } from "@/lib/schedule"
 import { BookingLinks } from "./booking-links"
+import { DeleteClassDialog } from "./delete-class-dialog"
 import { DayList } from "./day-list"
 import { EmptySchedule } from "./empty-schedule"
-import { toLocalSchedule } from "./local-schedule"
+import { toLocalSchedule, type LocalClass } from "./local-schedule"
 import { ScheduleNotes } from "./schedule-notes"
 import { TrialLessonCard } from "./trial-lesson-card"
 import { WeekGrid } from "./week-grid"
@@ -30,8 +31,54 @@ export function ScheduleView({
     [hasWeeklyClasses, weekly_classes, timeZone, now],
   )
 
+  // The one delete dialog (spec 27), shared by both layouts: the week grid
+  // and the day list are both rendered, one hidden by CSS
+  const [deleting, setDeleting] = useState<LocalClass | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const opener = useRef<HTMLElement | null>(null)
+  // A refetch that no longer holds the class closes the dialog
+  const present =
+    deleting !== null &&
+    weekly_classes.some((c) => c.id === deleting.weeklyClass.id)
+
+  const openDelete = (item: LocalClass, element: HTMLElement) => {
+    opener.current = element
+    setDeleting(item)
+    setDialogOpen(true)
+  }
+
+  // Back to the control that opened it, or, once its class is gone, to the
+  // heading of what's left
+  const finalFocus = () => {
+    const element = opener.current
+    if (element?.isConnected) return element
+    return (
+      document.getElementById("weekly-classes-heading") ??
+      document.getElementById("empty-schedule-heading")
+    )
+  }
+
+  const dialog = (
+    <DeleteClassDialog
+      target={deleting}
+      open={dialogOpen && present}
+      onClose={() => setDialogOpen(false)}
+      onClosed={() => {
+        setDialogOpen(false)
+        setDeleting(null)
+        opener.current = null
+      }}
+      finalFocus={finalFocus}
+    />
+  )
+
   if (!local && !trial_lesson) {
-    return <EmptySchedule />
+    return (
+      <>
+        <EmptySchedule />
+        {dialog}
+      </>
+    )
   }
 
   return (
@@ -42,7 +89,11 @@ export function ScheduleView({
 
       <section aria-labelledby="weekly-classes-heading">
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-          <h2 id="weekly-classes-heading" className="text-xl">
+          <h2
+            id="weekly-classes-heading"
+            tabIndex={-1}
+            className="text-xl outline-none"
+          >
             Weekly classes
           </h2>
           {local && (
@@ -56,8 +107,16 @@ export function ScheduleView({
         </div>
         {local ? (
           <>
-            <WeekGrid schedule={local} className="mt-4 hidden lg:block" />
-            <DayList schedule={local} className="mt-4 lg:hidden" />
+            <WeekGrid
+              schedule={local}
+              onDelete={openDelete}
+              className="mt-4 hidden lg:block"
+            />
+            <DayList
+              schedule={local}
+              onDelete={openDelete}
+              className="mt-4 lg:hidden"
+            />
           </>
         ) : (
           <p className="mt-2 text-muted-foreground">No weekly classes yet.</p>
@@ -70,6 +129,7 @@ export function ScheduleView({
         now={now}
         hasWeeklyClasses={hasWeeklyClasses}
       />
+      {dialog}
     </div>
   )
 }
