@@ -6,15 +6,26 @@ import { SiteHeader } from "@/components/layout/site-header";
 import { QueryProvider } from "@/components/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { env } from "@/lib/env";
+import {
+  BASE_OPEN_GRAPH,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+} from "@/lib/site-metadata";
 import { cn } from "@/lib/utils";
 
+// Site-wide defaults. Public pages add their own canonical and openGraph
+// through publicPageMetadata(); the others keep these, with the root
+// opengraph-image filled in by Next
 export const metadata: Metadata = {
+  metadataBase: new URL(env.SITE_URL),
   title: {
-    default: "Science Nest",
-    template: "%s · Science Nest",
+    default: SITE_NAME,
+    template: `%s · ${SITE_NAME}`,
   },
-  description:
-    "Science tutoring in Biology, Chemistry, Physics, Science, Biochemistry and Molecular Biology. Book a free 60-minute trial lesson, then weekly classes online.",
+  description: SITE_DESCRIPTION,
+  openGraph: BASE_OPEN_GRAPH,
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

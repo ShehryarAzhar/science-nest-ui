@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 
+import { publicPageMetadata, SUBJECTS_DESCRIPTION } from "@/lib/site-metadata";
 import { FreeTrialNote } from "./free-trial-note";
 import { SubjectList } from "./subject-list";
 import { SubjectsErrorBoundary } from "./subjects-error-boundary";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: "Subjects",
-};
+  description: SUBJECTS_DESCRIPTION,
+  path: "/subjects",
+});
 
 export default function SubjectsPage() {
   return (

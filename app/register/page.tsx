@@ -6,6 +6,9 @@ import { Logo } from "@/components/brand/logo";
 
 export const metadata: Metadata = {
   title: "Register",
+  // Reachable, but kept out of search results. Not disallowed in robots.txt,
+  // so crawlers can read this
+  robots: { index: false, follow: true },
 };
 
 // Static: the form reads `next` and guesses the country in the browser, so

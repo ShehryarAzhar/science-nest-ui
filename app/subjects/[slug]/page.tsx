@@ -10,6 +10,11 @@ import { routeActionClass } from "@/components/route-state";
 import { SpecimenImage } from "@/components/specimen-image";
 import { buttonVariants } from "@/components/ui/button";
 import { formatUsd } from "@/lib/format-usd";
+import {
+  publicPageMetadata,
+  subjectDescription,
+  SUBJECTS_DESCRIPTION,
+} from "@/lib/site-metadata";
 import { getSubjects, type Subject } from "@/lib/subjects";
 import { cn } from "@/lib/utils";
 import { FreeTrialNote } from "../free-trial-note";
@@ -32,16 +37,25 @@ export async function generateStaticParams() {
 // The one try/catch around getSubjects(): a throw here would replace the
 // inline error panel with the app error page. It's safe because the page
 // body still throws into SubjectsErrorBoundary, so a build without the
-// backend still fails and a failed revalidation still keeps the old page
+// backend still fails and a failed revalidation still keeps the old page.
+// An unknown slug gets the not-found title itself: the page's notFound()
+// only streams it in later, after the HTML <title>. The fallback has no
+// canonical, since the slug may not exist
 export async function generateMetadata({
   params,
 }: PageProps<"/subjects/[slug]">): Promise<Metadata> {
   const { slug } = await params;
   try {
     const subject = (await getSubjects()).find((s) => s.slug === slug);
-    return subject ? { title: subject.name } : {};
+    return subject
+      ? publicPageMetadata({
+          title: subject.name,
+          description: subjectDescription(subject),
+          path: `/subjects/${subject.slug}`,
+        })
+      : { title: "Page not found" };
   } catch {
-    return { title: "Subjects" };
+    return { title: "Subjects", description: SUBJECTS_DESCRIPTION };
   }
 }
 

@@ -45,6 +45,15 @@ as `/subjects` are prerendered from it, and the build fails with "Couldn't
 fetch subjects from API_BASE_URL. Is the backend running?" when it can't be
 reached.
 
+## Deploy
+
+- Production builds must set `SITE_URL` to the real public domain (e.g.
+  `https://www.example.com`). Canonical URLs, the sitemap, `robots.txt` and
+  `og:image` are built from it at build time, so a build left on the
+  `.env.example` default points them all at `http://localhost:3000`.
+- `API_BASE_URL` must point at the production backend, and it must be
+  reachable during `npm run build` (see Run).
+
 ## Checks
 
 ```bash

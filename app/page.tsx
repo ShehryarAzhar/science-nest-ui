@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   CalendarCheckIcon,
@@ -12,6 +13,11 @@ import { HexLattice } from "@/components/brand/hex-lattice";
 import { routeActionClass } from "@/components/route-state";
 import { SpecimenImage } from "@/components/specimen-image";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  publicPageMetadata,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+} from "@/lib/site-metadata";
 import { cn } from "@/lib/utils";
 import { FreeTrialNote } from "./subjects/free-trial-note";
 import { SubjectList } from "./subjects/subject-list";
@@ -19,6 +25,13 @@ import { SubjectsErrorBoundary } from "./subjects/subjects-error-boundary";
 
 // Public landing page. Static: no cookies, so guests and students see the
 // same page, and the booking links send guests through /login?next=… (proxy)
+
+export const metadata: Metadata = publicPageMetadata({
+  title: SITE_NAME,
+  absoluteTitle: true,
+  description: SITE_DESCRIPTION,
+  path: "/",
+});
 
 const SECTION = "mx-auto w-full max-w-6xl px-4 py-14 md:px-6 md:py-24";
 
