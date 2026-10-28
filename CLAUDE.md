@@ -439,6 +439,16 @@ Spec 24. `TrialSlotPicker` (`components/slot-picker/trial-slot-picker.tsx`, clie
 - Layout (`trial-date-tabs.tsx`): one row of local-date tabs (short weekday over `formatLocalDate()`'s "29 Oct", a gap before each Monday, scrolling sideways when it doesn't fit, a check on the date holding the selection), then that date's hours under the parts of the day, 4 or 6 per row as in the weekly picker. It opens on the selected hour's date, else the first date with a free hour once availability loads; after the student picks a date or hour, a refetch never moves it.
 - Notes: "Times are in <zone> (<offset>)." (no daylight-saving sentence), the loading status, "No times are free in the next two weeks." when nothing is bookable, and below the hours the selected hour in full (`formatTrialDateTime()`).
 
+### Book weekly class
+
+Spec 25. `/classes/new` (`app/classes/new/`) is a static shell: `page.tsx` reads `getSubjects()` (cached, public) inside `SubjectsErrorBoundary`, and passes the list to `BookWeeklyClassForm` (client). Availability, local times and `?subject=<slug>` (exact slug, through `lib/use-location-search.ts`, applied once after mount) are read in the browser.
+
+- `BookingShell` (client) holds the back link and the `h1`, and watches the availability query: its 403 renders `studentAccessFallback()`'s state in place of the whole page. A failed subjects read keeps the heading and shows the subjects panel instead of the form.
+- Form (react-hook-form + `weeklyClassFormSchema(subjects)` in `app/classes/schema.ts`): subject, level (the subject's levels only; auto-picked when there's one, cleared when the new subject lacks it), duration (with the subject's weekly price), and `WeeklySlotPicker` with no own slot. The backend's `day` and `time` errors are renamed onto `slot`. Radio groups and the picker are focused on error through their tab stop.
+- Submit: a TanStack mutation through `studentFetch` (`POST /api/student/classes`), a ref guard against double posts, the form disabled until navigation. On success, `scheduleQueryKey` and `availabilityQueryKey` are invalidated with `refetchType: "none"` (an immediate refetch would show the new class as "mine" in the still-mounted picker and flash the taken notice; both refetch on their next mount), then a "Weekly class booked." toast and `/dashboard`.
+- "This timeslot is already booked." (`SLOT_TAKEN_MESSAGE`, via `hasErrorMessage()`): the warning notice above the picker, and availability is refetched; the picker then clears the slot itself. The notice also shows when a background refetch clears the selected slot (`onChange(null)`), and hides when a new slot is picked or on submit. Any other backend message goes through `applyServerErrors()`.
+- An availability failure other than 403, with nothing loaded yet, shows an inline panel with Try again where the picker goes.
+
 ### Time zones
 
 `lib/time-zone.ts` (shared, pure) holds every UTC ↔ local conversion and time display format. Callers always pass the IANA time zone and "now" (or a reference instant); the helpers never read either themselves. `getBrowserTimeZone()` is for client code only.
@@ -460,7 +470,7 @@ Tokens never reach client JS:
 
 Keep cookie options (names, `maxAge`, flags) consistent between these two files, the logout action and the session-end route when changing any of them.
 
-**Registration doesn't log in.** `app/register/actions.ts` — server action `register({ values, next })` re-checks the input with `registerSchema` (`app/register/schema.ts`), posts to `POST /auth/users/` (public mode), sets no cookies, and redirects to `/login?registered=1&username=…` (plus `next`, passed through `safeReturnPath()`; never the password). On failure it returns a `NormalizedError`. The login form reads those params in the browser (`app/login/use-location-search.ts`, so `/login` stays static): a success notice until the next submit, the username prefilled, the password focused. The login page's "Register" link carries `next` on to `/register`.
+**Registration doesn't log in.** `app/register/actions.ts` — server action `register({ values, next })` re-checks the input with `registerSchema` (`app/register/schema.ts`), posts to `POST /auth/users/` (public mode), sets no cookies, and redirects to `/login?registered=1&username=…` (plus `next`, passed through `safeReturnPath()`; never the password). On failure it returns a `NormalizedError`. The login form reads those params in the browser (`lib/use-location-search.ts`, so `/login` stays static): a success notice until the next submit, the username prefilled, the password focused. The login page's "Register" link carries `next` on to `/register`.
 
 ### Register page and phone field
 
@@ -505,7 +515,7 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files,
   desktop, the last Menu item after a separator on mobile). The logo is `components/brand/logo.tsx`
   (`height` in px drives the under-24px favicon mark, copied from
   `app/icon.svg`). Menus use `components/ui/dropdown-menu.tsx`, restyled to
-  the tokens; searchable pickers use `components/ui/combobox.tsx`, styled the same; tabs use `components/ui/tabs.tsx` (trimmed, no shadows, the active tab marked by fill, weight and a primary rule). Both fonts are defined once in `app/fonts.ts`.
+  the tokens; searchable pickers use `components/ui/combobox.tsx`, styled the same; tabs use `components/ui/tabs.tsx` (trimmed, no shadows, the active tab marked by fill, weight and a primary rule); choices use `components/ui/radio-group.tsx` (Base UI, restyled: `RadioCard` is a whole card as one radio, checked = primary border, accent tint and a filled dot). Both fonts are defined once in `app/fonts.ts`.
 - Route fallbacks (spec 11), app-level only: `app/not-found.tsx` (every
   unmatched URL and `notFound()`, title "Page not found"), `app/error.tsx`
   (Next 16 `retry()`, shows only the `digest` as a reference, never the
@@ -532,7 +542,7 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files,
 
 ### Installed but not yet wired up
 
-Zustand is a dependency intended for client state, with no stores yet. react-hook-form + zod (`@hookform/resolvers`) are wired up: the login form and its schema (`app/login/`) are the first, then the register form (`app/register/`), with backend errors mapped by `lib/form-errors.ts` (see Backend errors).
+Zustand is a dependency intended for client state, with no stores yet. react-hook-form + zod (`@hookform/resolvers`) are wired up: the login form and its schema (`app/login/`) are the first, then the register form (`app/register/`) and the weekly class booking form (`app/classes/`), with backend errors mapped by `lib/form-errors.ts` (see Backend errors).
 
 Path alias: `@/*` → repo root.
 
@@ -571,7 +581,7 @@ as part of the spec.
 | 22 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 05, 06, 09 | Implemented |
 | 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Implemented |
 | 24 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 22 | Implemented |
-| 25 | book-weekly-class | `/classes/new` form: subject, level (filtered to the subject), duration 40/60, slot; `POST /classes/`; handles "already booked" by refetching availability; invalidates schedule and availability | 04, 09, 21, 23 | Stub |
+| 25 | book-weekly-class | `/classes/new` form: subject, level (filtered to the subject), duration 40/60, slot; `POST /classes/`; handles "already booked" by refetching availability; invalidates schedule and availability | 04, 09, 21, 23 | Implemented |
 | 26 | edit-weekly-class | `/classes/[id]/edit`: load `GET /classes/{id}/`, prefill the form, keep its own slot selectable, save with PATCH | 09, 25 | Stub |
 | 27 | delete-weekly-class | Delete action with confirmation from the dashboard: `DELETE /classes/{id}/`, then invalidate schedule and availability | 09, 21 | Stub |
 | 28 | book-trial-lesson | `/trial-lesson/new` form: subject, level, slot; `POST /trial-lessons/`; only offered when the student has no trial lesson; invalidates schedule and availability | 04, 09, 21, 24 | Stub |

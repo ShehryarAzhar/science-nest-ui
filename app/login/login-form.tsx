@@ -11,7 +11,7 @@ import {
   loginSchema,
   type LoginValues,
 } from "@/app/login/schema"
-import { useLocationSearch } from "@/app/login/use-location-search"
+import { useLocationSearch } from "@/lib/use-location-search"
 import { PasswordInput } from "@/components/password-input"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
