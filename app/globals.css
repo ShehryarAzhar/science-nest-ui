@@ -162,6 +162,17 @@
   }
 }
 
+/* Taken slot cells (spec 23): muted fill with a diagonal hatch in the border
+   token, so "taken" never relies on colour alone */
+@utility slot-hatch {
+  background-color: var(--muted);
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--border) 0 1px,
+    transparent 1px 6px
+  );
+}
+
 /* Home hero headline (spec 18); the page sets the size */
 @utility heading-hero {
   font-weight: 700;

@@ -414,9 +414,13 @@ function displayFormat(
   return format;
 }
 
-export function formatWeekday(day: Weekday, locale?: string): string {
+export function formatWeekday(
+  day: Weekday,
+  locale?: string,
+  width: "long" | "short" = "long",
+): string {
   // 2024-01-01 was a Monday
-  return displayFormat(locale, { weekday: "long", timeZone: "UTC" }).format(
+  return displayFormat(locale, { weekday: width, timeZone: "UTC" }).format(
     Date.UTC(2024, 0, 1 + WEEKDAYS.indexOf(day)),
   );
 }
@@ -464,15 +468,38 @@ export function formatTrialDateTime(
   }).format(toUtcMs(startsAt));
 }
 
+// "GMT+5", the offset in force at `at`. Tells apart two weekly slots that
+// share a local time in a clock-change week
+export function formatUtcOffset(
+  timeZone: string,
+  at: Date,
+  locale?: string,
+): string | undefined {
+  return displayFormat(locale, { timeZone, timeZoneName: "shortOffset" })
+    .formatToParts(at)
+    .find((part) => part.type === "timeZoneName")?.value;
+}
+
 // "Asia/Karachi (GMT+5)", with the offset in force at `at`
 export function formatTimeZoneLabel(
   timeZone: string,
   at: Date,
   locale?: string,
 ): string {
-  const offset = displayFormat(locale, { timeZone, timeZoneName: "shortOffset" })
-    .formatToParts(at)
-    .find((part) => part.type === "timeZoneName")?.value;
+  const offset = formatUtcOffset(timeZone, at, locale);
   const name = timeZone.replace(/_/g, " ");
   return offset ? `${name} (${offset})` : name;
+}
+
+// The note shown wherever weekly classes appear in local time (dashboard,
+// weekly picker): the daylight-saving sentence only for zones that need it
+export function weeklyTimeZoneNote(
+  timeZone: string,
+  now: Date,
+  locale?: string,
+): string {
+  const label = formatTimeZoneLabel(timeZone, now, locale);
+  return observesDaylightSaving(timeZone, now)
+    ? `Times are in ${label}. Weekly classes are fixed in UTC, so their local time moves by an hour when your clocks change.`
+    : `Times are in ${label}.`;
 }
