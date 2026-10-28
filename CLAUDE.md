@@ -378,6 +378,15 @@ Spec 15. How student pages handle 401 and 403 from student endpoints:
 - `lib/student-access.ts` (shared): `isSessionError()` and `isNoStudentProfileError()`, structural checks on `status` (and `method`) that work for both error types.
 - `studentAccessFallback(error)` (`components/student-access/student-access-fallback.tsx`) returns the element to render, or `null`. Server Components: `catch (e) { const f = studentAccessFallback(e); if (f) return f; throw e }`; its 401 branch renders `SessionExpiredRedirect`, which runs `endStudentSession()` after mount (needs JS). Server actions keep using `normalizeApiError()`.
 
+### Account page
+
+Spec 20. `/account` (`app/account/`) reads `GET /auth/users/me/` on the server through `getAccount()` (`account-data.ts`, server-only, student mode, Zod-checked, never cached) inside `<Suspense>`.
+
+- Read-only: username, email, name (first + last, or a muted "Not set"; a blank email gets the same) and phone, then "To change these details, ask your tutor."
+- Admin accounts get 200 with `phone_number: null`, not 403: they see their details with no phone row, not "Student account needed".
+- 401/403 go through `studentAccessFallback()`, whose states replace the whole page. The "Account" heading is in `AccountShell`, rendered by the Suspense fallback, the details and the error panel, so it never sits above the guard's own `h1`.
+- Every other failure is rethrown to `AccountErrorBoundary` (`catchError`, `SubjectsPanel` frame, Try again → `retry()`), never `app/error.tsx`.
+
 ### Time zones
 
 `lib/time-zone.ts` (shared, pure) holds every UTC ↔ local conversion and time display format. Callers always pass the IANA time zone and "now" (or a reference instant); the helpers never read either themselves. `getBrowserTimeZone()` is for client code only.
@@ -503,7 +512,7 @@ as part of the spec.
 | 17 | subject-detail-page | Public `/subjects/[slug]` page from the cached subjects list (`getSubjects()`) (description, levels, prices, booking CTAs); unknown slug → not-found; images: see Design › Images | 11, 16 | Implemented |
 | 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, "Book a free trial" and "Book a weekly class" CTAs (no register link); images: see Design › Images | 16 | Implemented |
 | 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Implemented |
-| 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Stub |
+| 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Implemented |
 | 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book; images: see Design › Images | 06, 09, 15 | Stub |
 | 22 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 05, 06, 09 | Stub |
 | 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Stub |
