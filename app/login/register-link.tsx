@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 
-import { useLocationSearch } from "@/app/login/use-location-search"
+import { useLocationSearch } from "@/lib/use-location-search"
 
 // Carries `next` on to /register, so a guest who registers first still ends
 // up where they were going. register() validates it on the server
