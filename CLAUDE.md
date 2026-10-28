@@ -405,6 +405,17 @@ Spec 21. `/dashboard` (`app/dashboard/`) is a static shell. The schedule loads i
 - A 403 renders `studentAccessFallback()`'s state with no shell (it has its own `h1`). Other failures show the `SubjectsPanel` error with Try again → `refetch()`. A failed background refetch keeps the schedule already shown.
 - Desktop (`lg` and up): `WeekGrid`, 96px per hour, so a 40-minute block fits all three lines (subject, time, level and price). Below `lg`: `DayList`. The trial lesson is `TrialLessonCard`, above both.
 
+### Availability
+
+Spec 22. `lib/availability.ts` (Client Components only, it uses `studentFetch`) is the one place the Backend API › Availability rules live; pickers and forms never re-derive them.
+
+- `availabilityQueryKey` (`["availability"]`) and `availabilityQueryOptions()`, with `staleTime: 0` so every picker mount refetches (focus, reconnect and retry follow the shared defaults). Specs 25–31 invalidate the key after every booking, edit, delete or cancel, and after "This timeslot is already booked." The Zod check runs `day`, `time` and `starts_at` through the `lib/time-zone.ts` parsers; a failure throws a generic `invalid_response` `StudentApiError`.
+- Lookups work in UTC only and return `SlotAvailability`: `free`, `taken` (someone else's, blocked), `mine` (the student's own booking, blocked, "Yours") or `own` (the booking being edited, selectable, "Yours").
+- `weeklySlotAvailability(data, { ownSlot })`: blocks every weekly class's `day` + `time` and every trial lesson's UTC weekday + hour (from `starts_at` via `startsAtToUtcWeeklyKey()`; the response's trial `day`/`time` are checked but not used).
+- `trialSlotAvailability(data, { ownStartsAt })`: blocks any candidate on a weekly class's UTC weekday + hour and each exact trial `starts_at` (compared as instants).
+- The own slot is `own` only when the response holds it as one of the student's (`mine`) bookings of that kind; otherwise the option does nothing.
+- `useWeeklyAvailability({ ownSlot })` and `useTrialAvailability({ ownStartsAt })` return `{ query, slotAvailability }`; the lookup is `null` until data loads and keeps the last data through a refetch. Pages read `query.error` (403 → `studentAccessFallback()`).
+
 ### Time zones
 
 `lib/time-zone.ts` (shared, pure) holds every UTC ↔ local conversion and time display format. Callers always pass the IANA time zone and "now" (or a reference instant); the helpers never read either themselves. `getBrowserTimeZone()` is for client code only.
@@ -449,7 +460,8 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files,
   `components/query-provider.tsx` in the root layout (one client per browser
   session, a new one per server render). Shared defaults: queries never retry
   a 4xx except 408 and 429, everything else retries at most twice; mutations
-  never retry; `staleTime` 30 s (availability overrides it, spec 22). The
+  never retry; `staleTime` 30 s (availability overrides it with 0 in
+  `lib/availability.ts`, spec 22). The
   retry rule reads a numeric `status` on the thrown error; browser code
   fetches student data only through `studentFetch` (`lib/student-api.ts`),
   whose `StudentApiError` carries it. The schedule query and its key are in
@@ -533,7 +545,7 @@ as part of the spec.
 | 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Implemented |
 | 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Implemented |
 | 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book; images: see Design › Images | 06, 09, 15 | Implemented |
-| 22 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 05, 06, 09 | Stub |
+| 22 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 05, 06, 09 | Implemented |
 | 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Stub |
 | 24 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 22 | Stub |
 | 25 | book-weekly-class | `/classes/new` form: subject, level (filtered to the subject), duration 40/60, slot; `POST /classes/`; handles "already booked" by refetching availability; invalidates schedule and availability | 04, 09, 21, 23 | Stub |
