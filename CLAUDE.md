@@ -100,21 +100,29 @@ Django REST Framework + MySQL, auth via Djoser + SimpleJWT.
 **Weekly classes (student, full CRUD):** `/classes/`, `/classes/{id}/`
 - Send: subject (id), level (code), day (`monday`–`sunday`), time (full hour,
   UTC), duration (40 or 60).
-- Returns: subject as `{id, name, slug, levels}`, level as `{code, name}`,
-  day and day_display. No price.
+- Returns: id, subject as `{id, name, slug, levels}`, level as `{code, name}`,
+  day, day_display, time (`"HH:MM:SS"`, UTC) and duration. No price.
 - Level must be one of the subject's levels. One booking per weekday + hour
   across all students. Can't take a slot held by an upcoming trial lesson.
 
 **Trial lesson (student, full CRUD):** `/trial-lessons/`, `/trial-lessons/{id}/`
 - Send: subject (id), level (code), starts_at (ISO 8601 UTC, full hour,
   future). Always 60 minutes and free.
+- Returns: id, subject as `{id, name, slug, levels}`, level as `{code, name}`,
+  starts_at (ISO 8601 UTC, e.g. `"2026-11-02T14:00:00Z"`) and completed
+  (boolean, read-only). No `ends_at`.
 - One per student. Can't clash with a weekly class or another trial lesson.
-- Once completed (set in admin) or past, it is locked: edit and delete return
-  403 with a message. It can still be read.
+- Locked when `completed` (set in admin) or `starts_at` is at or before now:
+  edit and delete return 403 with a message. It can still be read. The
+  frontend can detect this from those two fields without waiting for a 403.
 
 **Schedule (student):** `GET /schedule/`
-- Returns weekly_classes (each with its price), trial_lesson (object or null,
-  shown even when past), and weekly_cost. Sorted by UTC day and time.
+- Returns `{weekly_classes, trial_lesson, weekly_cost}`. Each weekly class has
+  the weekly class fields plus `price` (its own duration's price from the
+  subject's current prices). trial_lesson is the trial lesson object or null,
+  shown even when completed or past. weekly_cost is the sum of the prices
+  (`0` with no classes; the trial lesson is free). Sorted by UTC day and time.
+- Prices and weekly_cost are JSON numbers with 2 decimal places, not strings.
 
 **Availability (student):** `GET /availability/`
 - Returns `weekly_classes: [{day, time "HH:MM:SS", mine}]` and
@@ -387,6 +395,16 @@ Spec 20. `/account` (`app/account/`) reads `GET /auth/users/me/` on the server t
 - 401/403 go through `studentAccessFallback()`, whose states replace the whole page. The "Account" heading is in `AccountShell`, rendered by the Suspense fallback, the details and the error panel, so it never sits above the guard's own `h1`.
 - Every other failure is rethrown to `AccountErrorBoundary` (`catchError`, `SubjectsPanel` frame, Try again → `retry()`), never `app/error.tsx`.
 
+### Student dashboard
+
+Spec 21. `/dashboard` (`app/dashboard/`) is a static shell. The schedule loads in the browser, unlike `/account`, because local times only render on the client.
+
+- `lib/schedule.ts` (Client Components only, it uses `studentFetch`): the Zod-checked `Schedule` types, `scheduleQueryKey` (`["schedule"]`) and `scheduleQueryOptions()`. Specs 25–31 invalidate `scheduleQueryKey` after every booking, edit, delete or cancel. The Zod check also runs `day`, `time` and `starts_at` through the `lib/time-zone.ts` parsers, so a bad value fails the query (inline panel) instead of throwing `TimeValueError` during render. A failed check throws a `StudentApiError` (`invalid_response`, generic message).
+- The zone comes from `useSyncExternalStore` (`null` on the server), and `ScheduleView` renders only once it's known. It takes "now" once with `useState`, so `new Date()` never runs in the prerender (Cache Components rejects it there).
+- `app/dashboard/local-schedule.ts` turns weekly classes into local weekday + minutes (a class past local midnight stays on its start day, ending after 1440), sorted and grouped in local order, plus the grid's hour range and side-by-side lanes for overlaps (only possible in an autumn clock-change week).
+- A 403 renders `studentAccessFallback()`'s state with no shell (it has its own `h1`). Other failures show the `SubjectsPanel` error with Try again → `refetch()`. A failed background refetch keeps the schedule already shown.
+- Desktop (`lg` and up): `WeekGrid`, 96px per hour, so a 40-minute block fits all three lines (subject, time, level and price). Below `lg`: `DayList`. The trial lesson is `TrialLessonCard`, above both.
+
 ### Time zones
 
 `lib/time-zone.ts` (shared, pure) holds every UTC ↔ local conversion and time display format. Callers always pass the IANA time zone and "now" (or a reference instant); the helpers never read either themselves. `getBrowserTimeZone()` is for client code only.
@@ -400,7 +418,7 @@ Spec 20. `/account` (`app/account/`) reads `GET /auth/users/me/` on the server t
 
 Tokens never reach client JS:
 
-1. `app/login/actions.ts` — server action `login({ username, password, next })`, called by the `/login` form (`app/login/login-form.tsx`, which reads `next` from the URL at submit time so the page stays static). It re-checks the input with the shared Zod schema (`app/login/schema.ts`), posts the credentials through the API client (public mode), stores `access` (270 s, 30 s before the 5-minute token expires) and `refresh` (1 day) as httpOnly, `sameSite: lax` cookies, then redirects to `safeReturnPath(next)` (`lib/return-path.ts`: same-site paths only; anything else, `/login` or `/register` → `/dashboard`). On failure it returns a `NormalizedError` (a 401 → "Invalid username or password.").
+1. `app/login/actions.ts` — server action `login({ username, password, next })`, called by the `/login` form (`app/login/login-form.tsx`, which reads `next` from the URL at submit time so the page stays static). It re-checks the input with the shared Zod schema (`app/login/schema.ts`), posts the credentials through the API client (public mode), stores `access` (270 s, 30 s before the 5-minute token expires) and `refresh` (1 day, the backend's SimpleJWT default lifetime) as httpOnly, `sameSite: lax` cookies, then redirects to `safeReturnPath(next)` (`lib/return-path.ts`: same-site paths only; anything else, `/login` or `/register` → `/dashboard`). On failure it returns a `NormalizedError` (a 401 → "Invalid username or password.").
 2. `proxy.ts` — runs on pages and `/api/`. First, any `/subjects/…` path with uppercase letters gets a permanent (308) redirect to the same path in lowercase (query kept, percent escapes untouched, no backend call): slugs are lowercase, and a wrong-case render would otherwise share a route-cache file with the real page on case-insensitive filesystems (spec 17). Its `config.matcher` skips static files (`/_next/static`, `/_next/image`, `/images/`, `/logo/`, the app icons and any path with a file extension), so one page load makes at most one refresh call. If `access` is missing but `refresh` exists, it calls the refresh endpoint, sets the new `access` cookie on both the forwarded request (so the current render sees it) and the response. If refresh fails, it deletes both cookies and treats the request as a guest's; requests under `/api/` then get a 401 JSON `{"detail": "Your session has expired. Log in again."}` (a fetch would otherwise follow a redirect to the login page's HTML).
 3. Route protection (same file, after the refresh step). "Logged in" means an `access` cookie is present or a refresh just succeeded; the token isn't checked any further. Guests on student routes (`/dashboard`, `/account`, `/classes`, `/trial-lesson`, matched on whole segments with everything under them) are redirected to `/login?next=<path + query>`. Logged-in users on `/login` or `/register` are redirected to `/dashboard`. Every other page, including public pages after a failed refresh, loads normally.
 4. `app/login/actions.ts` — server action `logout()` deletes both cookies (path `/`) and `redirect("/")`, with no backend call. The header's form posts it directly (works without JS) and clears the TanStack Query cache on submit. Server actions post to the current URL, so a user whose cookies are already gone on a student route gets the proxy's `/login?next=…` redirect instead and the action doesn't run (they're logged out anyway).
@@ -434,7 +452,8 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files,
   never retry; `staleTime` 30 s (availability overrides it, spec 22). The
   retry rule reads a numeric `status` on the thrown error; browser code
   fetches student data only through `studentFetch` (`lib/student-api.ts`),
-  whose `StudentApiError` carries it.
+  whose `StudentApiError` carries it. The schedule query and its key are in
+  `lib/schedule.ts` (see Student dashboard).
 - Toasts: shadcn Sonner in `components/ui/sonner.tsx`, mounted once in the
   root layout and styled with the theme tokens (success, warning and
   destructive fills, surface for default and info). Import `toast` from
@@ -513,7 +532,7 @@ as part of the spec.
 | 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, "Book a free trial" and "Book a weekly class" CTAs (no register link); images: see Design › Images | 16 | Implemented |
 | 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Implemented |
 | 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Implemented |
-| 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book; images: see Design › Images | 06, 09, 15 | Stub |
+| 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book; images: see Design › Images | 06, 09, 15 | Implemented |
 | 22 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 05, 06, 09 | Stub |
 | 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Stub |
 | 24 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 22 | Stub |
@@ -524,8 +543,3 @@ as part of the spec.
 | 29 | edit-trial-lesson | Edit page for the trial lesson: prefill, keep its own slot selectable, save with PATCH | 09, 28 | Stub |
 | 30 | cancel-trial-lesson | Cancel action with confirmation: `DELETE /trial-lessons/{id}/`, then invalidate schedule and availability | 09, 21 | Stub |
 | 31 | trial-lesson-locked-state | Locked display for a past or completed trial lesson: hide edit and cancel, and show the backend's 403 message if an edit or delete is refused | 09, 29, 30 | Stub |
-
-### Open questions
-- Trial lesson response fields aren't documented: is there an `id`, `ends_at`, or a completed flag? Without a completed flag, the frontend can only detect "locked" from a past `starts_at` or a 403 (affects 21, 29–31).
-- `/schedule/` item shapes aren't documented: the name of each weekly class's price field, and the format of `weekly_cost` (number or string) (affects 21).
-- Does the 1-day `refresh` cookie match the refresh token lifetime? (affects 02)
