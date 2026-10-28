@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils"
 
 const R = 24 // circumradius
 const W = Math.sqrt(3) * R
-const VIEW_W = 480
-const VIEW_H = 320
+export const VIEW_W = 480
+export const VIEW_H = 320
 
 function hexagon(cx: number, cy: number) {
   const points = [0, 1, 2, 3, 4, 5].map((i) => {
@@ -19,8 +19,9 @@ function hexagon(cx: number, cy: number) {
 }
 
 // Rows 1.5 R apart, odd rows shifted half a cell, with a cell of overflow on
-// every side so the slice crop never shows a ragged edge
-const LATTICE_PATH = (() => {
+// every side so the slice crop never shows a ragged edge. Also drawn into the
+// share image (app/opengraph-image.tsx)
+export const LATTICE_PATH = (() => {
   const cells: string[] = []
   for (let row = -1; row * 1.5 * R <= VIEW_H + R; row++) {
     const offset = row % 2 === 0 ? 0 : W / 2

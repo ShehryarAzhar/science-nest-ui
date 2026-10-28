@@ -184,8 +184,8 @@ popover fade and scale. No scroll-reveal. Respect `prefers-reduced-motion`
 (static lattice, instant transitions).
 
 **Motif:** thin hex lattice (1px, low-opacity primary), only in the home hero
-and subject headers, plus a single-hex logo mark. Never behind forms,
-pickers or the schedule.
+and subject headers, plus a single-hex logo mark (and the generated share
+image, see Images). Never behind forms, pickers or the schedule.
 
 **Slot pickers and schedule** (never colour alone):
 - available: surface + border; primary border on hover or focus
@@ -249,6 +249,11 @@ Subject slugs: `biology`, `chemistry`, `physics`, `science`, `biochemistry`,
   the app and showing it immediately matters more.
 - Hero: `loading="eager"` + `fetchPriority="high"` (`priority` is deprecated
   in Next 16). Everything else lazy-loads.
+- Exception, the share image (spec 19): `app/opengraph-image.tsx` is
+  generated at build time, never shown in the app, not a `public/images/`
+  file and doesn't use `SpecimenImage`. Light theme colours only, the light
+  horizontal logo, the hex lattice, and the brand fonts bundled in
+  `assets/fonts/` (see Architecture › SEO metadata).
 
 ### Logo
 
@@ -315,6 +320,41 @@ Browser code never calls Django directly (it has no token). It calls `app/api/st
 - Shared with the list: `formatUsd()` (`lib/format-usd.ts`), `LevelBadges` and `FreeTrialNote` (`app/subjects/`).
 - Subject cards (`/subjects` and the home page) also list what each subject offers: fixed frontend labels per level code, not backend data, in `lib/subject-offerings.ts` (`subjectOfferings(levels)`: the union across the subject's levels, no duplicates, in this order; unknown codes add nothing). `o_level` and/or `a_level` → "Exam Preparation", "Past Papers", "Notes & Practice"; `all_levels` → "Exam Preparation", "Notes & Practice"; `university` → "Research Guidance", "Assignments Help". `SubjectOfferings` (`app/subjects/subject-offerings.tsx`) shows them as a plain list with primary check icons below the level badges, never as pills, so they aren't mistaken for levels.
 - The home page `/` (spec 18, `app/page.tsx`) is static (no cookies) and shows the same grid through `SubjectList` (`app/subjects/subject-list.tsx`, shared with `/subjects`) with `headingLevel="h3"`, inside `SubjectsErrorBoundary` around that section only, so the rest of the page stays up. Its booking links carry no `?subject=`. In the page content, the tutor's credentials appear once, in the hero (the site footer also lists them on every page).
+
+### SEO metadata
+
+Spec 19. Public pages carry search and share metadata; everything is static.
+
+- The root layout sets `metadataBase` from `SITE_URL` (`lib/env.ts`), so
+  metadata URLs are relative paths. It also sets the title template,
+  `SITE_DESCRIPTION`, `openGraph` (site name, `website`, `en_US`) and
+  `twitter: { card: "summary_large_image" }`.
+- `lib/site-metadata.ts`: the shared constants and
+  `publicPageMetadata({ title, description, path, absoluteTitle? })`
+  (title, description, canonical, and `openGraph` with title, URL and the
+  share image), used by `/`, `/subjects` and `/subjects/[slug]`.
+  `subjectDescription()` turns a subject's description into one line of at
+  most 160 characters, or generates one from the name and levels when it's
+  blank.
+- Metadata merges shallowly: a page's `openGraph` replaces the layout's, and
+  with it the root `opengraph-image`, so `publicPageMetadata()` lists the
+  image (`/opengraph-image`) itself. Twitter tags are never set per page:
+  Next fills them in from `openGraph`.
+- `app/opengraph-image.tsx`: the one share image (1200×630 PNG, `alt` and
+  `size` from `lib/site-metadata.ts`). `next/font` can't feed
+  `ImageResponse`, so Source Serif 4 Semibold and Atkinson Hyperlegible Next
+  Regular are bundled as TTFs in `assets/fonts/` (SIL OFL, licences next to
+  them) and read from disk at build time. The lattice reuses
+  `LATTICE_PATH`, `VIEW_W` and `VIEW_H` from `components/brand/hex-lattice.tsx`.
+- `app/sitemap.ts`: `/`, `/subjects` and every subject from `getSubjects()`
+  (throws on failure or an empty list, like the pages). `app/robots.ts`:
+  disallows `/api/` and the student routes, and points to the sitemap.
+  `/login` and `/register` aren't disallowed, so crawlers can read their
+  `robots: { index: false, follow: true }`.
+- Not-found pages get `noindex` from Next automatically. The proxy also
+  runs on `/opengraph-image` (no extension), which is harmless: pages never
+  load the image themselves.
+- Production builds must set `SITE_URL` to the real domain (README › Deploy).
 
 ### Backend errors
 
@@ -462,7 +502,7 @@ as part of the spec.
 | 16 | subjects-list-page | Public `/subjects` page rendering `GET /subjects/` on the server: name, levels, 40/60-minute prices; images: see Design › Images | 03, 10 | Implemented |
 | 17 | subject-detail-page | Public `/subjects/[slug]` page from the cached subjects list (`getSubjects()`) (description, levels, prices, booking CTAs); unknown slug → not-found; images: see Design › Images | 11, 16 | Implemented |
 | 18 | home-page | Replace the starter `app/page.tsx` with the public landing page: pitch, tutor credentials (no name or photo), subjects overview, "Book a free trial" and "Book a weekly class" CTAs (no register link); images: see Design › Images | 16 | Implemented |
-| 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Stub |
+| 19 | public-seo-metadata | Metadata for public pages (titles, descriptions, Open Graph), `generateMetadata` for subject detail, `sitemap.ts`, `robots.ts` | 01, 16, 17, 18 | Implemented |
 | 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Stub |
 | 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book; images: see Design › Images | 06, 09, 15 | Stub |
 | 22 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 05, 06, 09 | Stub |

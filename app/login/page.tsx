@@ -5,6 +5,9 @@ import { Logo } from "@/components/brand/logo";
 
 export const metadata: Metadata = {
   title: "Log in",
+  // Reachable, but kept out of search results. Not disallowed in robots.txt,
+  // so crawlers can read this
+  robots: { index: false, follow: true },
 };
 
 // Static: the form reads `next` itself at submit time, so nothing here
