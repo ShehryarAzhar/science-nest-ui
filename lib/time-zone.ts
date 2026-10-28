@@ -425,6 +425,20 @@ export function formatWeekday(
   );
 }
 
+// A local calendar date, e.g. "Thu 29 Oct" or "Thursday 29 October"
+export function formatLocalDate(
+  date: LocalDate,
+  { weekday, month }: { weekday?: "long" | "short"; month: "long" | "short" },
+  locale?: string,
+): string {
+  return displayFormat(locale, {
+    weekday,
+    day: "numeric",
+    month,
+    timeZone: "UTC",
+  }).format(Date.UTC(date.year, date.month - 1, date.day));
+}
+
 export function formatTimeOfDay(
   hour: number,
   minute: number,
