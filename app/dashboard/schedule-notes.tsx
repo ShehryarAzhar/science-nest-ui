@@ -1,6 +1,6 @@
 import { GlobeIcon, VideoIcon } from "lucide-react"
 
-import { formatTimeZoneLabel, observesDaylightSaving } from "@/lib/time-zone"
+import { formatTimeZoneLabel, weeklyTimeZoneNote } from "@/lib/time-zone"
 
 // The daylight-saving note (spec 06) only matters for weekly classes, which
 // are fixed in UTC
@@ -13,11 +13,9 @@ export function ScheduleNotes({
   now: Date
   hasWeeklyClasses: boolean
 }) {
-  const label = formatTimeZoneLabel(timeZone, now)
-  const zoneNote =
-    hasWeeklyClasses && observesDaylightSaving(timeZone, now)
-      ? `Times are in ${label}. Weekly classes are fixed in UTC, so their local time moves by an hour when your clocks change.`
-      : `Times are in ${label}.`
+  const zoneNote = hasWeeklyClasses
+    ? weeklyTimeZoneNote(timeZone, now)
+    : `Times are in ${formatTimeZoneLabel(timeZone, now)}.`
 
   return (
     <div className="flex max-w-[65ch] flex-col gap-2 text-muted-foreground">

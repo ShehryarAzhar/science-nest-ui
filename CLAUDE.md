@@ -416,6 +416,17 @@ Spec 22. `lib/availability.ts` (Client Components only, it uses `studentFetch`) 
 - The own slot is `own` only when the response holds it as one of the student's (`mine`) bookings of that kind; otherwise the option does nothing.
 - `useWeeklyAvailability({ ownSlot })` and `useTrialAvailability({ ownStartsAt })` return `{ query, slotAvailability }`; the lookup is `null` until data loads and keeps the last data through a refetch. Pages read `query.error` (403 → `studentAccessFallback()`).
 
+### Weekly slot picker
+
+Spec 23. `WeeklySlotPicker` (`components/slot-picker/weekly-slot-picker.tsx`, client) is the one control for a weekly class's slot (specs 25 and 26).
+
+- Controlled and UTC only: `value` and `onChange` carry `{ day, time }` (`onChange(null)` when a refetch shows the selected slot as `taken` or `mine`; the form shows the notice). It never fetches: the page calls `useWeeklyAvailability({ ownSlot })` and passes `slotAvailability` (`null` = loading, every cell disabled with a status line), and handles the query's 403 and errors itself. Also `disabled`, `id` and the radiogroup's `aria-label`/`aria-labelledby`/`aria-describedby`/`aria-invalid`.
+- Offers all 168 slots from `weeklySlotGrid()`, arranged by `buildWeeklyLayout()` (`components/slot-picker/weekly-slots.ts`): each local day's slots grouped into four parts of the day by local start hour (Night, Morning, Afternoon, Evening). When a clock change in the coming week puts two UTC slots on one local day and time, both are offered and labelled with `formatUtcOffset()`.
+- Zone from `useSyncExternalStore`, "now" once in `useState` after mount; before that a static placeholder, so the prerender holds no local times. The zone note is `weeklyTimeZoneNote()`.
+- Layout (`weekly-day-tabs.tsx`, every width): `components/ui/tabs.tsx` day tabs (a check on the day holding the selection), opening on the selected slot's local day or today's local weekday, then that day's slots under each part's name and range. `useWideLayout()` (`use-wide-layout.ts`, Tailwind's `lg` via `matchMedia`) sets 4 per row with the part above (short weekday names) or, from `lg`, one row of 6 per part with the part beside it (full weekday names, picker capped at `max-w-4xl`), so the whole day fits without scrolling. The same column count drives the CSS grid and the keyboard rows. No desktop week grid: it was replaced after a browser review (spec 23 › Conflicts).
+- `SlotCell` (`slot-cell.tsx`) draws the Design states: free (surface, primary border on hover), taken (`slot-hatch` utility in `app/globals.css`, "Taken"), mine and own (2px eosin border, dot, "Yours"; own stays selectable), selected (primary fill, check). Its accessible name is weekday, time (and offset) and state. `SlotLegend` explains them.
+- Keyboard: one cell in the tab order (`use-roving-grid.ts`), the selected slot or else the first at or after 08:00 local; arrows only move focus (Up/Down keep the visible column, Left/Right move along the row, Home/End), Space, Enter or a click selects. Taken and "Yours" cells stay focusable but `aria-disabled`, so screen readers announce them; this departs from the radio pattern's select-on-arrow on purpose. Base UI's RadioGroup isn't used: its arrow keys are linear only.
+
 ### Time zones
 
 `lib/time-zone.ts` (shared, pure) holds every UTC ↔ local conversion and time display format. Callers always pass the IANA time zone and "now" (or a reference instant); the helpers never read either themselves. `getBrowserTimeZone()` is for client code only.
@@ -423,7 +434,7 @@ Spec 22. `lib/availability.ts` (Client Components only, it uses `studentFetch`) 
 - Weekly slots (`day` + `"HH:00:00"`) follow the next-occurrence rule (see Backend API). `weeklySlotGrid()` lists all 168 UTC slots with local labels; pickers and the schedule build on it and on `trialSlotList()` (future full UTC hours grouped by local date), never on local input, so half-hour zones like `Asia/Kolkata` still get every slot.
 - Local → UTC (`localToWeeklySlot()`, `localToStartsAt()`) returns a result with `kind`: `ok`, `ambiguous` (autumn clock change), `nonexistent` (spring gap, or no full UTC hour), and for trials `not-full-hour`. Nothing is silently shifted.
 - Parsers (`parseWeekday`, `parseUtcTime`, `parseStartsAt`) throw `TimeValueError` on bad backend values. Never show `day_display`: it's the UTC weekday.
-- The server doesn't know the student's zone, so local times render only in Client Components after mount (see `node_modules/next/dist/docs/01-app/02-guides/preventing-flash-before-hydration.md`). `observesDaylightSaving()` decides whether specs 21 and 23 show the daylight-saving note.
+- The server doesn't know the student's zone, so local times render only in Client Components after mount (see `node_modules/next/dist/docs/01-app/02-guides/preventing-flash-before-hydration.md`). `weeklyTimeZoneNote()` builds the zone note for specs 21 and 23 (the daylight-saving sentence only when `observesDaylightSaving()` is true). `formatUtcOffset()` ("GMT+1") labels two weekly slots that share a local time in a clock-change week; `formatWeekday()` takes `"short"` for compact day labels.
 
 ### Auth flow (JWT in httpOnly cookies)
 
@@ -482,7 +493,7 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files,
   desktop, the last Menu item after a separator on mobile). The logo is `components/brand/logo.tsx`
   (`height` in px drives the under-24px favicon mark, copied from
   `app/icon.svg`). Menus use `components/ui/dropdown-menu.tsx`, restyled to
-  the tokens; searchable pickers use `components/ui/combobox.tsx`, styled the same. Both fonts are defined once in `app/fonts.ts`.
+  the tokens; searchable pickers use `components/ui/combobox.tsx`, styled the same; tabs use `components/ui/tabs.tsx` (trimmed, no shadows, the active tab marked by fill, weight and a primary rule). Both fonts are defined once in `app/fonts.ts`.
 - Route fallbacks (spec 11), app-level only: `app/not-found.tsx` (every
   unmatched URL and `notFound()`, title "Page not found"), `app/error.tsx`
   (Next 16 `retry()`, shows only the `digest` as a reference, never the
@@ -546,7 +557,7 @@ as part of the spec.
 | 20 | account-page | Read-only `/account` page showing `GET /auth/users/me/` fields | 15 | Implemented |
 | 21 | student-dashboard | `/dashboard` showing `GET /schedule/`: weekly classes with prices, the trial lesson, weekly cost, in local time, with empty state and links to book; images: see Design › Images | 06, 09, 15 | Implemented |
 | 22 | availability-query | Query hook for `GET /availability/` and derived blocked sets for the weekly and trial pickers per the API rules, with an "exclude my own slot" option for edits | 05, 06, 09 | Implemented |
-| 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Stub |
+| 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Implemented |
 | 24 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 22 | Stub |
 | 25 | book-weekly-class | `/classes/new` form: subject, level (filtered to the subject), duration 40/60, slot; `POST /classes/`; handles "already booked" by refetching availability; invalidates schedule and availability | 04, 09, 21, 23 | Stub |
 | 26 | edit-weekly-class | `/classes/[id]/edit`: load `GET /classes/{id}/`, prefill the form, keep its own slot selectable, save with PATCH | 09, 25 | Stub |
