@@ -1,0 +1,84 @@
+import { queryOptions } from "@tanstack/react-query";
+import { z } from "zod";
+
+import { GENERIC_ERROR_MESSAGE } from "@/lib/drf-errors";
+import { studentFetch, StudentApiError } from "@/lib/student-api";
+import { parseStartsAt, parseUtcTime, parseWeekday } from "@/lib/time-zone";
+
+// GET /schedule/ for Client Components (it fetches through studentFetch).
+// Booking, edit, delete and cancel (specs 25–31) invalidate scheduleQueryKey
+
+// Checked here rather than at render: a TimeValueError thrown while
+// rendering would skip the page's error panel and reach app/error.tsx
+function parses(parse: (value: string) => unknown) {
+  return (value: string) => {
+    try {
+      parse(value);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+}
+
+const levelSchema = z.object({ code: z.string(), name: z.string() });
+
+const subjectSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  slug: z.string(),
+  levels: z.array(levelSchema),
+});
+
+// day_display is the UTC weekday, so it isn't kept
+const weeklyClassSchema = z.object({
+  id: z.number(),
+  subject: subjectSchema,
+  level: levelSchema,
+  day: z.string().refine(parses(parseWeekday)).transform(parseWeekday),
+  time: z.string().refine(parses(parseUtcTime)),
+  duration: z.union([z.literal(40), z.literal(60)]),
+  price: z.number(),
+});
+
+const trialLessonSchema = z.object({
+  id: z.number(),
+  subject: subjectSchema,
+  level: levelSchema,
+  starts_at: z.string().refine(parses(parseStartsAt)),
+  completed: z.boolean(),
+});
+
+const scheduleSchema = z.object({
+  weekly_classes: z.array(weeklyClassSchema),
+  trial_lesson: trialLessonSchema.nullable(),
+  weekly_cost: z.number(),
+});
+
+export type ScheduleWeeklyClass = z.infer<typeof weeklyClassSchema>;
+export type ScheduleTrialLesson = z.infer<typeof trialLessonSchema>;
+export type Schedule = z.infer<typeof scheduleSchema>;
+
+export const scheduleQueryKey = ["schedule"] as const;
+
+export function scheduleQueryOptions() {
+  return queryOptions({
+    queryKey: scheduleQueryKey,
+    queryFn: async ({ signal }) => {
+      const body = await studentFetch<unknown>("/api/student/schedule", {
+        signal,
+      });
+      const parsed = scheduleSchema.safeParse(body);
+      if (!parsed.success) {
+        // Never Zod's own text
+        throw new StudentApiError("GET", {
+          kind: "invalid_response",
+          status: null,
+          fieldErrors: {},
+          formErrors: [GENERIC_ERROR_MESSAGE],
+        });
+      }
+      return parsed.data;
+    },
+  });
+}
