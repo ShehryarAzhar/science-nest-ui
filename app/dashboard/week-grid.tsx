@@ -1,13 +1,16 @@
 import type { CSSProperties } from "react"
+import Link from "next/link"
 
 import { formatUsd } from "@/lib/format-usd"
 import { formatTimeOfDay, formatTimeRange, formatWeekday, WEEKDAYS } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
+import { editClassLabel } from "./edit-class-link"
 import type { LocalClass, LocalSchedule } from "./local-schedule"
 
 // Tall enough that a 40-minute block (62px after its 2px gap) holds all three
 // lines at leading-tight with py-0.5 (about 57px): subject, time, level and
-// price. A shorter hour clips the last line
+// price. A shorter hour clips the last line, so the Edit link is the
+// subject name stretched over the whole block rather than a fourth line
 const HOUR_PX = 96
 const COLUMNS = "grid-cols-[4.5rem_repeat(7,minmax(0,1fr))]"
 
@@ -29,10 +32,17 @@ function ClassBlock({
   return (
     <li
       style={style}
-      className="absolute overflow-hidden rounded-sm border-l-[3px] border-primary bg-secondary px-2 py-0.5 text-sm leading-tight text-secondary-foreground"
+      className="absolute overflow-hidden rounded-sm border-l-[3px] border-primary bg-secondary px-2 py-0.5 text-sm leading-tight text-secondary-foreground has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50"
     >
-      <span className="sr-only">{formatWeekday(local.day)}, </span>
-      <p className="truncate font-semibold">{weeklyClass.subject.name}</p>
+      <p className="truncate font-semibold">
+        <Link
+          href={`/classes/${weeklyClass.id}/edit`}
+          aria-label={editClassLabel(weeklyClass, local)}
+          className="outline-none decoration-1 underline-offset-2 after:absolute after:inset-0 hover:underline"
+        >
+          {weeklyClass.subject.name}
+        </Link>
+      </p>
       <p className="truncate tabular-nums">
         {formatTimeRange(local.hour, local.minute, weeklyClass.duration)}
       </p>

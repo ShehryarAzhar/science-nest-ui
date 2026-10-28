@@ -407,6 +407,7 @@ Spec 21. `/dashboard` (`app/dashboard/`) is a static shell. The schedule loads i
 - `app/dashboard/local-schedule.ts` turns weekly classes into local weekday + minutes (a class past local midnight stays on its start day, ending after 1440), sorted and grouped in local order, plus the grid's hour range and side-by-side lanes for overlaps (only possible in an autumn clock-change week).
 - A 403 renders `studentAccessFallback()`'s state with no shell (it has its own `h1`). Other failures show the `SubjectsPanel` error with Try again → `refetch()`. A failed background refetch keeps the schedule already shown.
 - Desktop (`lg` and up): `WeekGrid`, 96px per hour, so a 40-minute block fits all three lines (subject, time, level and price). Below `lg`: `DayList`. The trial lesson is `TrialLessonCard`, above both.
+- Edit links (spec 26) to `/classes/{id}/edit`, named "Edit <subject>, <local weekday> <time>" (`app/dashboard/edit-class-link.tsx`): on `WeekGrid` the subject name is a link stretched over the whole block (no fourth line, the hour height stays 96px; focus rings the block), on `DayList` a visible 44px "Edit" link in the row's right column. Spec 27 adds delete beside them.
 
 ### Availability
 
@@ -441,13 +442,24 @@ Spec 24. `TrialSlotPicker` (`components/slot-picker/trial-slot-picker.tsx`, clie
 
 ### Book weekly class
 
-Spec 25. `/classes/new` (`app/classes/new/`) is a static shell: `page.tsx` reads `getSubjects()` (cached, public) inside `SubjectsErrorBoundary`, and passes the list to `BookWeeklyClassForm` (client). Availability, local times and `?subject=<slug>` (exact slug, through `lib/use-location-search.ts`, applied once after mount) are read in the browser.
+Spec 25. `/classes/new` (`app/classes/new/`) is a static shell: `page.tsx` reads `getSubjects()` (cached, public) inside `SubjectsErrorBoundary`, and passes the list to `WeeklyClassForm` (`app/classes/weekly-class-form.tsx`, client, shared with spec 26). Availability, local times and `?subject=<slug>` (exact slug, through `lib/use-location-search.ts`, applied once after mount) are read in the browser.
 
-- `BookingShell` (client) holds the back link and the `h1`, and watches the availability query: its 403 renders `studentAccessFallback()`'s state in place of the whole page. A failed subjects read keeps the heading and shows the subjects panel instead of the form.
+- `BookingShell` (`app/classes/booking-shell.tsx`, client) renders `BookingFrame` (`booking-frame.tsx`: the back link and the `h1`, plain markup for Suspense fallbacks), and watches the availability query: its 403 renders `studentAccessFallback()`'s state in place of the whole page. A failed subjects read keeps the heading and shows the subjects panel instead of the form.
 - Form (react-hook-form + `weeklyClassFormSchema(subjects)` in `app/classes/schema.ts`): subject, level (the subject's levels only; auto-picked when there's one, cleared when the new subject lacks it), duration (with the subject's weekly price), and `WeeklySlotPicker` with no own slot. The backend's `day` and `time` errors are renamed onto `slot`. Radio groups and the picker are focused on error through their tab stop.
 - Submit: a TanStack mutation through `studentFetch` (`POST /api/student/classes`), a ref guard against double posts, the form disabled until navigation. On success, `scheduleQueryKey` and `availabilityQueryKey` are invalidated with `refetchType: "none"` (an immediate refetch would show the new class as "mine" in the still-mounted picker and flash the taken notice; both refetch on their next mount), then a "Weekly class booked." toast and `/dashboard`.
+- Pages left behind aren't unmounted: with Cache Components, Next hides them in React's `<Activity>` and shows them again with their state (`node_modules/next/dist/docs/01-app/02-guides/preserving-ui-state.md`). So after a successful save, a `useLayoutEffect` cleanup (it runs when the page is hidden) resets the mutation, the double-post ref, the notice and the values (empty when booking; when editing, the saved class, also written into its query so `editing` and the own slot follow). Without it, returning to the page finds it still "Saving…". Unsaved drafts are kept. Specs 28–29 need the same.
 - "This timeslot is already booked." (`SLOT_TAKEN_MESSAGE`, via `hasErrorMessage()`): the warning notice above the picker, and availability is refetched; the picker then clears the slot itself. The notice also shows when a background refetch clears the selected slot (`onChange(null)`), and hides when a new slot is picked or on submit. Any other backend message goes through `applyServerErrors()`.
 - An availability failure other than 403, with nothing loaded yet, shows an inline panel with Try again where the picker goes.
+
+### Edit weekly class
+
+Spec 26. `/classes/[id]/edit` (`app/classes/[id]/edit/`) reuses spec 25's `WeeklyClassForm` with `editing` set.
+
+- Class ids are only known per request, so `page.tsx` awaits `params` inside `<Suspense>`; the fallback (`BookingFrame` + a static `ClassLoading`) is the prerendered shell. An id that isn't `^[1-9]\d*$` (the student API proxy's rule) shows `ClassNotFound` with no request.
+- The class loads in the browser: `weeklyClassQueryOptions(id)` / `weeklyClassQueryKey(id)` (`["classes", id]`) in `lib/schedule.ts`, Zod-checked like the schedule (no `price`, no `day_display`). `BookingShell` gets `classId` and watches it with availability, so a 403 from either replaces the page. A 404 (any body; CLAUDE.md documents none) → "Class not found" with a dashboard link; other failures → inline panel with Try again. The form mounts only once the class has loaded, and a background refetch never resets it.
+- Prefill checks the current subject list: a subject no longer listed starts unchosen, a level the subject no longer offers is cleared (or its single level picked). No `?subject=` preselection.
+- `useWeeklyAvailability({ ownSlot })` gets the class's slot as loaded, so it stays "Yours" and selectable after another slot is picked.
+- Save: `PATCH /api/student/classes/{id}` with all five fields ("Save changes", "Saving…"). On success, schedule, availability and the class's query are invalidated with `refetchType: "none"`, then a "Weekly class updated." toast and `/dashboard`. Errors and the "already booked" notice work as in booking; a 404 from PATCH lands in the form-level alert.
 
 ### Time zones
 
@@ -542,7 +554,7 @@ Keep cookie options (names, `maxAge`, flags) consistent between these two files,
 
 ### Installed but not yet wired up
 
-Zustand is a dependency intended for client state, with no stores yet. react-hook-form + zod (`@hookform/resolvers`) are wired up: the login form and its schema (`app/login/`) are the first, then the register form (`app/register/`) and the weekly class booking form (`app/classes/`), with backend errors mapped by `lib/form-errors.ts` (see Backend errors).
+Zustand is a dependency intended for client state, with no stores yet. react-hook-form + zod (`@hookform/resolvers`) are wired up: the login form and its schema (`app/login/`) are the first, then the register form (`app/register/`) and the weekly class form (`app/classes/`, booking and editing), with backend errors mapped by `lib/form-errors.ts` (see Backend errors).
 
 Path alias: `@/*` → repo root.
 
@@ -582,7 +594,7 @@ as part of the spec.
 | 23 | weekly-slot-picker | Reusable control to pick a weekday + full hour in local time, greying out blocked slots, returning UTC `day` + `time` | 22 | Implemented |
 | 24 | trial-slot-picker | Reusable control to pick a future date + full hour in local time, greying out blocked times, returning a UTC `starts_at` | 22 | Implemented |
 | 25 | book-weekly-class | `/classes/new` form: subject, level (filtered to the subject), duration 40/60, slot; `POST /classes/`; handles "already booked" by refetching availability; invalidates schedule and availability | 04, 09, 21, 23 | Implemented |
-| 26 | edit-weekly-class | `/classes/[id]/edit`: load `GET /classes/{id}/`, prefill the form, keep its own slot selectable, save with PATCH | 09, 25 | Stub |
+| 26 | edit-weekly-class | `/classes/[id]/edit`: load `GET /classes/{id}/`, prefill the form, keep its own slot selectable, save with PATCH | 09, 25 | Implemented |
 | 27 | delete-weekly-class | Delete action with confirmation from the dashboard: `DELETE /classes/{id}/`, then invalidate schedule and availability | 09, 21 | Stub |
 | 28 | book-trial-lesson | `/trial-lesson/new` form: subject, level, slot; `POST /trial-lessons/`; only offered when the student has no trial lesson; invalidates schedule and availability | 04, 09, 21, 24 | Stub |
 | 29 | edit-trial-lesson | Edit page for the trial lesson: prefill, keep its own slot selectable, save with PATCH | 09, 28 | Stub |

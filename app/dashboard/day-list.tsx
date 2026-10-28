@@ -1,6 +1,7 @@
 import { formatUsd } from "@/lib/format-usd"
 import { formatTimeRange, formatWeekday } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
+import { EditClassLink } from "./edit-class-link"
 import type { LocalSchedule } from "./local-schedule"
 
 // Mobile: only the days with classes, Monday first, in local time
@@ -30,11 +31,14 @@ export function DayList({
                   </p>
                   <p className="text-sm">{weeklyClass.level.name}</p>
                 </div>
-                <div className="shrink-0 text-right tabular-nums">
-                  <p>
-                    {formatTimeRange(local.hour, local.minute, weeklyClass.duration)}
-                  </p>
-                  <p className="text-sm">{formatUsd(weeklyClass.price)}</p>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <div className="text-right tabular-nums">
+                    <p>
+                      {formatTimeRange(local.hour, local.minute, weeklyClass.duration)}
+                    </p>
+                    <p className="text-sm">{formatUsd(weeklyClass.price)}</p>
+                  </div>
+                  <EditClassLink weeklyClass={weeklyClass} local={local} />
                 </div>
               </li>
             ))}
