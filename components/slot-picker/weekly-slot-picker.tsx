@@ -11,7 +11,8 @@ import {
   type WeeklySlotUtc,
 } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
-import { WeeklyDayTabs, type SlotGroupProps } from "./weekly-day-tabs"
+import type { SlotGroupProps } from "./day-part-slots"
+import { WeeklyDayTabs } from "./weekly-day-tabs"
 import { buildWeeklyLayout, slotKey } from "./weekly-slots"
 
 // Spec 23. A controlled picker for a weekly class's UTC weekday + hour,
