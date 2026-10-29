@@ -14,7 +14,8 @@ export type TrialLessonSummary = {
 // One-time, so it sits above the weekly schedule and never looks like a
 // weekly block. Shown the same way when past or completed (spec 31 adds the
 // locked display). The trial booking page puts it under its own h2.
-// `actions` (the dashboard's Edit link, spec 29) sit in a row at the foot
+// `actions` (the dashboard's Edit link and Cancel control, specs 29 and 30)
+// sit in a row at the foot
 export function TrialLessonCard({
   trialLesson,
   timeZone,

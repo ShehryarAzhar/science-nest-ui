@@ -3,11 +3,16 @@
 import { useMemo, useRef, useState } from "react"
 
 import { formatUsd } from "@/lib/format-usd"
-import { isTrialLessonLocked, type Schedule } from "@/lib/schedule"
+import {
+  isTrialLessonLocked,
+  type Schedule,
+  type ScheduleTrialLesson,
+} from "@/lib/schedule"
 import { BookingLinks } from "./booking-links"
+import { CancelTrialDialog } from "./cancel-trial-dialog"
 import { DeleteClassDialog } from "./delete-class-dialog"
 import { DayList } from "./day-list"
-import { EditTrialLink } from "./edit-trial-link"
+import { CancelTrialButton, EditTrialLink } from "./edit-trial-link"
 import { EmptySchedule } from "./empty-schedule"
 import { toLocalSchedule, type LocalClass } from "./local-schedule"
 import { ScheduleNotes } from "./schedule-notes"
@@ -48,10 +53,28 @@ export function ScheduleView({
     setDialogOpen(true)
   }
 
-  // Back to the control that opened it, or, once its class is gone, to the
-  // heading of what's left
-  const finalFocus = () => {
-    const element = opener.current
+  // The trial lesson's cancel dialog (spec 30). A refetch that no longer
+  // holds that trial closes it
+  const [cancelling, setCancelling] = useState<ScheduleTrialLesson | null>(
+    null,
+  )
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const cancelOpener = useRef<HTMLElement | null>(null)
+  const cancelPresent =
+    cancelling !== null && trial_lesson?.id === cancelling.id
+
+  const openCancel = (
+    trialLesson: ScheduleTrialLesson,
+    element: HTMLElement,
+  ) => {
+    cancelOpener.current = element
+    setCancelling(trialLesson)
+    setCancelOpen(true)
+  }
+
+  // Back to the control that opened it, or, once its class or trial is
+  // gone, to the heading of what's left
+  const focusAfter = (element: HTMLElement | null) => {
     if (element?.isConnected) return element
     return (
       document.getElementById("weekly-classes-heading") ??
@@ -59,25 +82,39 @@ export function ScheduleView({
     )
   }
 
-  const dialog = (
-    <DeleteClassDialog
-      target={deleting}
-      open={dialogOpen && present}
-      onClose={() => setDialogOpen(false)}
-      onClosed={() => {
-        setDialogOpen(false)
-        setDeleting(null)
-        opener.current = null
-      }}
-      finalFocus={finalFocus}
-    />
+  const dialogs = (
+    <>
+      <DeleteClassDialog
+        target={deleting}
+        open={dialogOpen && present}
+        onClose={() => setDialogOpen(false)}
+        onClosed={() => {
+          setDialogOpen(false)
+          setDeleting(null)
+          opener.current = null
+        }}
+        finalFocus={() => focusAfter(opener.current)}
+      />
+      <CancelTrialDialog
+        target={cancelling}
+        timeZone={timeZone}
+        open={cancelOpen && cancelPresent}
+        onClose={() => setCancelOpen(false)}
+        onClosed={() => {
+          setCancelOpen(false)
+          setCancelling(null)
+          cancelOpener.current = null
+        }}
+        finalFocus={() => focusAfter(cancelOpener.current)}
+      />
+    </>
   )
 
   if (!local && !trial_lesson) {
     return (
       <>
         <EmptySchedule />
-        {dialog}
+        {dialogs}
       </>
     )
   }
@@ -90,11 +127,18 @@ export function ScheduleView({
           timeZone={timeZone}
           actions={
             !isTrialLessonLocked(trial_lesson, now) && (
-              <EditTrialLink
-                trialLesson={trial_lesson}
-                id={trial_lesson.id}
-                timeZone={timeZone}
-              />
+              <>
+                <EditTrialLink
+                  trialLesson={trial_lesson}
+                  id={trial_lesson.id}
+                  timeZone={timeZone}
+                />
+                <CancelTrialButton
+                  trialLesson={trial_lesson}
+                  timeZone={timeZone}
+                  onCancel={(element) => openCancel(trial_lesson, element)}
+                />
+              </>
             )
           }
         />
@@ -142,7 +186,7 @@ export function ScheduleView({
         now={now}
         hasWeeklyClasses={hasWeeklyClasses}
       />
-      {dialog}
+      {dialogs}
     </div>
   )
 }

@@ -63,7 +63,7 @@ export type ScheduleTrialLesson = z.infer<typeof trialLessonSchema>;
 export type Schedule = z.infer<typeof scheduleSchema>;
 
 // The backend's lock: completed (set in admin), or started. Edit and delete
-// then return 403, so no Edit link is offered and the edit page shows why
+// then return 403, so no Edit or Cancel is offered and the edit page shows why
 export function isTrialLessonLocked(
   trialLesson: Pick<ScheduleTrialLesson, "completed" | "starts_at">,
   now: Date,
