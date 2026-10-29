@@ -4,7 +4,7 @@ import { BookingShell } from "@/app/classes/booking-shell";
 import { SubjectsErrorBoundary } from "@/app/subjects/subjects-error-boundary";
 import { getSubjects } from "@/lib/subjects";
 import { TrialLessonBooking } from "./trial-lesson-booking";
-import { TrialLessonForm } from "./trial-lesson-form";
+import { TrialLessonForm } from "../trial-lesson-form";
 
 export const metadata: Metadata = {
   title: "Book a free trial",

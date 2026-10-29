@@ -26,7 +26,20 @@ function startsAtMs(value: string): number | null {
   }
 }
 
-export function trialLessonFormSchema(subjects: readonly Subject[]) {
+// When editing (spec 29), the lesson's own hour is exempt from the lead
+// time while it's still in the future: the student may keep it
+function meetsLeadTime(value: string, ownStartsAt: string | undefined) {
+  const ms = startsAtMs(value) ?? 0;
+  const now = Date.now();
+  const ownMs = ownStartsAt === undefined ? null : startsAtMs(ownStartsAt);
+  if (ownMs !== null && ms === ownMs && ms > now) return true;
+  return ms - now >= LEAD_TIME_MS;
+}
+
+export function trialLessonFormSchema(
+  subjects: readonly Subject[],
+  { ownStartsAt }: { ownStartsAt?: string } = {},
+) {
   return z
     .object({
       subject: subjectField(subjects),
@@ -40,7 +53,7 @@ export function trialLessonFormSchema(subjects: readonly Subject[]) {
           // future full hour). Checked against the moment of submitting, so
           // a page left open can't book inside it
           .refine(
-            (value) => (startsAtMs(value) ?? 0) - Date.now() >= LEAD_TIME_MS,
+            (value) => meetsLeadTime(value, ownStartsAt),
             "This time is now less than 24 hours away. Choose a later time.",
           ),
         "Choose a time.",

@@ -1,7 +1,11 @@
+import type { ReactNode } from "react"
+
 import { formatTrialDateTime } from "@/lib/time-zone"
 
-// What the card shows: a schedule's trial lesson, or one just booked (spec 28)
+// What the card shows: a schedule's trial lesson, or one just booked (spec
+// 28). The id, when known, is for the Edit link (spec 29)
 export type TrialLessonSummary = {
+  id?: number
   subject: { name: string }
   level: { name: string }
   starts_at: string
@@ -9,15 +13,18 @@ export type TrialLessonSummary = {
 
 // One-time, so it sits above the weekly schedule and never looks like a
 // weekly block. Shown the same way when past or completed (spec 31 adds the
-// locked display). The trial booking page puts it under its own h2
+// locked display). The trial booking page puts it under its own h2.
+// `actions` (the dashboard's Edit link, spec 29) sit in a row at the foot
 export function TrialLessonCard({
   trialLesson,
   timeZone,
   headingLevel: Heading = "h2",
+  actions,
 }: {
   trialLesson: TrialLessonSummary
   timeZone: string
   headingLevel?: "h2" | "h3"
+  actions?: ReactNode
 }) {
   return (
     <section
@@ -45,6 +52,11 @@ export function TrialLessonCard({
           <dd>Free</dd>
         </div>
       </dl>
+      {actions && (
+        <div className="mt-4 flex flex-wrap gap-x-6 border-t border-border pt-2">
+          {actions}
+        </div>
+      )}
     </section>
   )
 }

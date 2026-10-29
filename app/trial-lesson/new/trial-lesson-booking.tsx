@@ -15,38 +15,32 @@ import type { TrialLessonSummary } from "@/app/dashboard/trial-lesson-card"
 import { SubjectsPanel } from "@/app/subjects/subjects-panel"
 import { routeActionClass } from "@/components/route-state"
 import { Button } from "@/components/ui/button"
-import { scheduleQueryOptions, type ScheduleTrialLesson } from "@/lib/schedule"
+import {
+  isTrialLessonLocked,
+  scheduleQueryOptions,
+  type ScheduleTrialLesson,
+} from "@/lib/schedule"
 import { isNoStudentProfileError } from "@/lib/student-access"
-import { getBrowserTimeZone, parseStartsAt } from "@/lib/time-zone"
+import { getBrowserTimeZone } from "@/lib/time-zone"
+import { TrialLoading } from "../trial-states"
 import { TrialStatus } from "./trial-status"
 
 // Spec 28. One trial lesson per student, and the public "Book a free trial"
 // buttons can't know who has one, so the schedule decides: the student's
 // trial lesson if there is one, otherwise the form. The form comes in as a
 // server-rendered slot (it needs the subject list), so it reports a booking
-// through context rather than a callback prop
+// through context rather than a callback prop. The edit page (spec 29)
+// renders the same form without it
 
 const TrialBookedContext = createContext<
   ((trialLesson: TrialLessonSummary) => void) | null
 >(null)
 
 export function useOnTrialBooked() {
-  const onBooked = use(TrialBookedContext)
-  if (!onBooked) throw new Error("useOnTrialBooked needs TrialLessonBooking.")
-  return onBooked
+  return use(TrialBookedContext)
 }
 
 const subscribe = () => () => {}
-
-// Static on purpose: CLAUDE.md › Design › Motion allows no pulse
-function TrialLoading() {
-  return (
-    <div role="status">
-      <span className="sr-only">Loading…</span>
-      <div aria-hidden className="h-96 max-w-4xl rounded-lg bg-muted" />
-    </div>
-  )
-}
 
 export function TrialLessonBooking({ form }: { form: ReactNode }) {
   const query = useQuery(scheduleQueryOptions())
@@ -144,9 +138,7 @@ function ExistingTrial({
   timeZone: string
 }) {
   const [now] = useState(() => new Date())
-  const past =
-    trialLesson.completed ||
-    parseStartsAt(trialLesson.starts_at).getTime() <= now.getTime()
+  const past = isTrialLessonLocked(trialLesson, now)
   return (
     <TrialStatus
       variant={past ? "past" : "upcoming"}

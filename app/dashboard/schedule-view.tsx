@@ -3,10 +3,11 @@
 import { useMemo, useRef, useState } from "react"
 
 import { formatUsd } from "@/lib/format-usd"
-import type { Schedule } from "@/lib/schedule"
+import { isTrialLessonLocked, type Schedule } from "@/lib/schedule"
 import { BookingLinks } from "./booking-links"
 import { DeleteClassDialog } from "./delete-class-dialog"
 import { DayList } from "./day-list"
+import { EditTrialLink } from "./edit-trial-link"
 import { EmptySchedule } from "./empty-schedule"
 import { toLocalSchedule, type LocalClass } from "./local-schedule"
 import { ScheduleNotes } from "./schedule-notes"
@@ -84,7 +85,19 @@ export function ScheduleView({
   return (
     <div className="flex flex-col gap-6 md:gap-8">
       {trial_lesson && (
-        <TrialLessonCard trialLesson={trial_lesson} timeZone={timeZone} />
+        <TrialLessonCard
+          trialLesson={trial_lesson}
+          timeZone={timeZone}
+          actions={
+            !isTrialLessonLocked(trial_lesson, now) && (
+              <EditTrialLink
+                trialLesson={trial_lesson}
+                id={trial_lesson.id}
+                timeZone={timeZone}
+              />
+            )
+          }
+        />
       )}
 
       <section aria-labelledby="weekly-classes-heading">
