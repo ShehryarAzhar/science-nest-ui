@@ -42,7 +42,8 @@ const weeklyClassSchema = z.object({
   price: z.number(),
 });
 
-const trialLessonSchema = z.object({
+// Also checks the trial booking's 201 body (spec 28)
+export const trialLessonSchema = z.object({
   id: z.number(),
   subject: subjectSchema,
   level: levelSchema,

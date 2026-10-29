@@ -20,22 +20,43 @@ export type WeeklyClassFormInput = {
 // Full UTC hours only, as the backend books them
 const UTC_FULL_HOUR = /^([01]\d|2[0-3]):00:00$/;
 
-function required<T extends z.ZodType>(schema: T, message: string) {
+// Shared with the trial lesson form (spec 28)
+export function required<T extends z.ZodType>(schema: T, message: string) {
   return schema
     .nullable()
     .refine((value) => value !== null, message)
     .transform((value) => value as z.output<T>);
 }
 
-export function weeklyClassFormSchema(subjects: readonly Subject[]) {
-  const ids = new Set(subjects.map(({ id }) => id));
+// The level must be one of the chosen subject's
+export function refineLevelOfSubject(subjects: readonly Subject[]) {
+  return (
+    { subject, level }: { subject: number; level: string },
+    ctx: z.RefinementCtx,
+  ) => {
+    const chosen = subjects.find(({ id }) => id === subject);
+    if (chosen && level && !chosen.levels.some(({ code }) => code === level)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["level"],
+        message: "Choose a level.",
+      });
+    }
+  };
+}
 
+export function subjectField(subjects: readonly Subject[]) {
+  const ids = new Set(subjects.map(({ id }) => id));
+  return required(
+    z.number().refine((id) => ids.has(id), "Choose a subject."),
+    "Choose a subject.",
+  );
+}
+
+export function weeklyClassFormSchema(subjects: readonly Subject[]) {
   return z
     .object({
-      subject: required(
-        z.number().refine((id) => ids.has(id), "Choose a subject."),
-        "Choose a subject.",
-      ),
+      subject: subjectField(subjects),
       level: required(z.string(), "Choose a level."),
       duration: required(
         z.union([z.literal(40), z.literal(60)]),
@@ -49,16 +70,7 @@ export function weeklyClassFormSchema(subjects: readonly Subject[]) {
         "Choose a time.",
       ),
     })
-    .superRefine(({ subject, level }, ctx) => {
-      const chosen = subjects.find(({ id }) => id === subject);
-      if (chosen && level && !chosen.levels.some(({ code }) => code === level)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["level"],
-          message: "Choose a level.",
-        });
-      }
-    });
+    .superRefine(refineLevelOfSubject(subjects));
 }
 
 export type WeeklyClassValues = z.output<ReturnType<typeof weeklyClassFormSchema>>;
