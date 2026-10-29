@@ -120,10 +120,15 @@ function savedTrialLesson(
 export function TrialLessonForm({
   subjects,
   editing,
+  onLocked,
 }: {
   subjects: readonly Subject[]
   // The trial lesson being edited (spec 29); booking when absent
   editing?: ScheduleTrialLesson
+  // Editing only: the backend refused the save with a 403, the trial lesson
+  // having started or been completed (spec 31). The page then replaces the
+  // form with its locked state
+  onLocked?: () => void
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -260,6 +265,19 @@ export function TrialLessonForm({
     } catch (error) {
       submitting.current = false
       let rest: NormalizedError | null = normalizeMutationError(error)
+      if (editingId !== undefined && onLocked && rest.status === 403) {
+        // Refetched now, so the locked state's card shows the lock; the
+        // dashboard's schedule refetches on its next mount
+        void queryClient.invalidateQueries({
+          queryKey: trialLessonQueryKey(editingId),
+        })
+        void queryClient.invalidateQueries({
+          queryKey: scheduleQueryKey,
+          refetchType: "none",
+        })
+        onLocked()
+        return
+      }
       if (hasErrorMessage(rest, SLOT_TAKEN_MESSAGE)) {
         setSlotTaken(true)
         // Fresh availability marks the hour taken; the picker then clears it

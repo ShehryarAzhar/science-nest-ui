@@ -12,13 +12,15 @@ import {
 } from "@/app/dashboard/trial-lesson-card"
 import { routeActionClass } from "@/components/route-state"
 import { buttonVariants } from "@/components/ui/button"
+import type { TrialLockReason } from "@/lib/schedule"
 import { formatTimeZoneLabel } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
 
 // What the page shows instead of the form: the trial just booked, or the
 // student's existing one, upcoming or past (completed, or already started).
-// A past trial is a plain fact with a next step, never a warning. An
-// upcoming one, when its id is known, can be edited (spec 29)
+// A past trial is a plain fact with a next step; only its card carries the
+// locked badge (spec 31). An upcoming one, when its id is known, can be
+// edited (spec 29)
 export type TrialStatusVariant = "booked" | "upcoming" | "past"
 
 const COPY: Record<TrialStatusVariant, { heading: string; line: string }> = {
@@ -43,11 +45,14 @@ export function TrialStatus({
   trialLesson,
   timeZone,
   now,
+  lockReason = null,
 }: {
   variant: TrialStatusVariant
   trialLesson: TrialLessonSummary
   timeZone: string
   now: Date
+  // The card's locked display, for the "past" variant
+  lockReason?: TrialLockReason | null
 }) {
   const { heading, line } = COPY[variant]
 
@@ -77,6 +82,7 @@ export function TrialStatus({
         trialLesson={trialLesson}
         timeZone={timeZone}
         headingLevel="h3"
+        lockReason={lockReason}
       />
 
       <div className="flex flex-col gap-2 text-muted-foreground">

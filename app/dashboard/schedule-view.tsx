@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react"
 
 import { formatUsd } from "@/lib/format-usd"
 import {
-  isTrialLessonLocked,
+  trialLessonLockReason,
   type Schedule,
   type ScheduleTrialLesson,
 } from "@/lib/schedule"
@@ -36,6 +36,9 @@ export function ScheduleView({
       hasWeeklyClasses ? toLocalSchedule(weekly_classes, timeZone, now) : null,
     [hasWeeklyClasses, weekly_classes, timeZone, now],
   )
+  const lockReason = trial_lesson
+    ? trialLessonLockReason(trial_lesson, now)
+    : null
 
   // The one delete dialog (spec 27), shared by both layouts: the week grid
   // and the day list are both rendered, one hidden by CSS
@@ -82,6 +85,15 @@ export function ScheduleView({
     )
   }
 
+  // The cancel dialog's: once its Cancel control is gone (a refused cancel
+  // that showed the lock, spec 31), to the Free trial card's heading
+  const focusAfterCancel = (element: HTMLElement | null) => {
+    if (element?.isConnected) return element
+    return (
+      document.getElementById("trial-lesson-heading") ?? focusAfter(null)
+    )
+  }
+
   const dialogs = (
     <>
       <DeleteClassDialog
@@ -105,7 +117,7 @@ export function ScheduleView({
           setCancelling(null)
           cancelOpener.current = null
         }}
-        finalFocus={() => focusAfter(cancelOpener.current)}
+        finalFocus={() => focusAfterCancel(cancelOpener.current)}
       />
     </>
   )
@@ -125,8 +137,9 @@ export function ScheduleView({
         <TrialLessonCard
           trialLesson={trial_lesson}
           timeZone={timeZone}
+          lockReason={lockReason}
           actions={
-            !isTrialLessonLocked(trial_lesson, now) && (
+            lockReason === null && (
               <>
                 <EditTrialLink
                   trialLesson={trial_lesson}

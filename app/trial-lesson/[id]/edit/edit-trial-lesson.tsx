@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useLayoutEffect, useState, useSyncExternalStore } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { CloudOffIcon } from "lucide-react"
 
@@ -8,13 +8,14 @@ import { SubjectsPanel } from "@/app/subjects/subjects-panel"
 import { routeActionClass } from "@/components/route-state"
 import { Button } from "@/components/ui/button"
 import {
-  isTrialLessonLocked,
+  trialLessonLockReason,
   trialLessonQueryOptions,
   type ScheduleTrialLesson,
 } from "@/lib/schedule"
 import { isNoStudentProfileError } from "@/lib/student-access"
 import { StudentApiError } from "@/lib/student-api"
 import type { Subject } from "@/lib/subjects"
+import { getBrowserTimeZone } from "@/lib/time-zone"
 import { TrialLessonForm } from "../../trial-lesson-form"
 import { TrialLoading, TrialLocked, TrialNotFound } from "../../trial-states"
 
@@ -67,9 +68,12 @@ export function EditTrialLesson({
   return <TrialLoading />
 }
 
+const subscribe = () => () => {}
+
 // The lesson only loads in the browser, so "now" is never taken in the
 // prerender. Taken once: a lesson that starts while the form is open is
-// refused by the backend on save (403 in the form alert)
+// refused by the backend on save, and the 403 swaps the form for the locked
+// state (spec 31)
 function LoadedTrial({
   trialLesson,
   subjects,
@@ -78,6 +82,39 @@ function LoadedTrial({
   subjects: readonly Subject[]
 }) {
   const [now] = useState(() => new Date())
-  if (isTrialLessonLocked(trialLesson, now)) return <TrialLocked />
-  return <TrialLessonForm subjects={subjects} editing={trialLesson} />
+  // null on the server and the first client render, for the locked card's
+  // local date and hour
+  const timeZone = useSyncExternalStore(
+    subscribe,
+    getBrowserTimeZone,
+    () => null,
+  )
+  // A save the backend refused as locked, which the refetched lesson may
+  // not show yet
+  const [refused, setRefused] = useState(false)
+  // With Cache Components, Next keeps a page left behind in React's
+  // <Activity> and shows it again with its state. Cleared when the page is
+  // hidden, so a later visit follows the refreshed lesson, per
+  // node_modules/next/dist/docs/01-app/02-guides/preserving-ui-state.md
+  useLayoutEffect(() => () => setRefused(false), [])
+
+  const lockReason = trialLessonLockReason(trialLesson, now)
+  if (lockReason || refused) {
+    if (!timeZone) return <TrialLoading />
+    return (
+      <TrialLocked
+        trialLesson={trialLesson}
+        timeZone={timeZone}
+        lockReason={lockReason}
+        refused={refused}
+      />
+    )
+  }
+  return (
+    <TrialLessonForm
+      subjects={subjects}
+      editing={trialLesson}
+      onLocked={() => setRefused(true)}
+    />
+  )
 }
