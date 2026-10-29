@@ -23,12 +23,19 @@ export function ScheduleNotes({
         <GlobeIcon aria-hidden className="mt-1 size-4 shrink-0" />
         {zoneNote}
       </p>
-      <p className="flex gap-2">
-        <VideoIcon aria-hidden className="mt-1 size-4 shrink-0" />
-        Lessons are on Zoom or Google Meet. Your tutor sends the meeting link
-        before each lesson, on WhatsApp to your registered phone number, or by
-        email.
-      </p>
+      <MeetingLinkNote />
     </div>
+  )
+}
+
+// Also on the trial booking page (spec 28), with the same wording
+export function MeetingLinkNote() {
+  return (
+    <p className="flex gap-2">
+      <VideoIcon aria-hidden className="mt-1 size-4 shrink-0" />
+      Lessons are on Zoom or Google Meet. Your tutor sends the meeting link
+      before each lesson, on WhatsApp to your registered phone number, or by
+      email.
+    </p>
   )
 }

@@ -1,15 +1,23 @@
-import type { ScheduleTrialLesson } from "@/lib/schedule"
 import { formatTrialDateTime } from "@/lib/time-zone"
+
+// What the card shows: a schedule's trial lesson, or one just booked (spec 28)
+export type TrialLessonSummary = {
+  subject: { name: string }
+  level: { name: string }
+  starts_at: string
+}
 
 // One-time, so it sits above the weekly schedule and never looks like a
 // weekly block. Shown the same way when past or completed (spec 31 adds the
-// locked display)
+// locked display). The trial booking page puts it under its own h2
 export function TrialLessonCard({
   trialLesson,
   timeZone,
+  headingLevel: Heading = "h2",
 }: {
-  trialLesson: ScheduleTrialLesson
+  trialLesson: TrialLessonSummary
   timeZone: string
+  headingLevel?: "h2" | "h3"
 }) {
   return (
     <section
@@ -19,10 +27,10 @@ export function TrialLessonCard({
       <p className="w-fit rounded-full bg-eosin px-2.5 py-0.5 text-sm font-semibold text-eosin-foreground">
         Free trial
       </p>
-      <h2 id="trial-lesson-heading" className="mt-3 text-xl">
+      <Heading id="trial-lesson-heading" className="mt-3 text-xl">
         {trialLesson.subject.name}
         <span className="sr-only">, free trial lesson</span>
-      </h2>
+      </Heading>
       <p className="text-muted-foreground">{trialLesson.level.name}</p>
       <p className="mt-3 text-lg font-semibold tabular-nums">
         {formatTrialDateTime(trialLesson.starts_at, timeZone)}
