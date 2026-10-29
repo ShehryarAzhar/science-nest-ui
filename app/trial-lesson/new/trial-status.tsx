@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 import Link from "next/link"
 import { CircleCheckIcon, GlobeIcon } from "lucide-react"
 
+import { editTrialHref, editTrialLabel } from "@/app/dashboard/edit-trial-link"
 import { MeetingLinkNote } from "@/app/dashboard/schedule-notes"
 import {
   TrialLessonCard,
@@ -16,7 +17,8 @@ import { cn } from "@/lib/utils"
 
 // What the page shows instead of the form: the trial just booked, or the
 // student's existing one, upcoming or past (completed, or already started).
-// A past trial is a plain fact with a next step, never a warning
+// A past trial is a plain fact with a next step, never a warning. An
+// upcoming one, when its id is known, can be edited (spec 29)
 export type TrialStatusVariant = "booked" | "upcoming" | "past"
 
 const COPY: Record<TrialStatusVariant, { heading: string; line: string }> = {
@@ -103,6 +105,15 @@ export function TrialStatus({
         >
           Go to dashboard
         </Link>
+        {variant !== "past" && trialLesson.id !== undefined && (
+          <Link
+            href={editTrialHref(trialLesson.id)}
+            aria-label={editTrialLabel(trialLesson, timeZone)}
+            className={cn(buttonVariants({ variant: "outline" }), actionClass)}
+          >
+            Edit trial lesson
+          </Link>
+        )}
       </div>
     </div>
   )

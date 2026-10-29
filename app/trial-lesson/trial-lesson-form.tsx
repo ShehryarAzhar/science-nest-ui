@@ -3,11 +3,13 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type FormEvent,
 } from "react"
+import { useRouter } from "next/navigation"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
@@ -39,20 +41,28 @@ import { hasErrorMessage, type NormalizedError } from "@/lib/drf-errors"
 import { applyServerErrors } from "@/lib/form-errors"
 import {
   scheduleQueryKey,
+  trialLessonQueryKey,
   trialLessonSchema,
   type Schedule,
+  type ScheduleTrialLesson,
 } from "@/lib/schedule"
 import { studentFetch } from "@/lib/student-api"
 import type { Subject } from "@/lib/subjects"
 import { useLocationSearch } from "@/lib/use-location-search"
-import { useOnTrialBooked } from "./trial-lesson-booking"
+import { useOnTrialBooked } from "./new/trial-lesson-booking"
 
-// Spec 28. Subject, level and a UTC starts_at, posted through the student
-// API proxy. Subjects come from the server; availability, local times and
-// `?subject=` only exist in the browser
+// Specs 28 and 29. Subject, level and a UTC starts_at, posted (booking) or
+// patched (editing) through the student API proxy. Subjects come from the
+// server; availability, local times and `?subject=` only exist in the
+// browser
 
 // On-screen order: the first one with an error gets focus
 const FIELDS = ["subject", "level", "starts_at"] as const
+
+const LABELS = {
+  book: { submit: "Book free trial", pending: "Booking…", done: "Trial lesson booked." },
+  edit: { submit: "Save changes", pending: "Saving…", done: "Trial lesson updated." },
+}
 
 type TrialLessonRequest = {
   subject: number
@@ -60,17 +70,76 @@ type TrialLessonRequest = {
   starts_at: string
 }
 
+// The loaded lesson as the form's starting values, checked against the
+// current subject list as in the weekly class form: a subject no longer
+// listed, or a level the subject no longer offers, starts unchosen (a
+// single level is picked)
+function prefill(
+  editing: ScheduleTrialLesson | undefined,
+  subjects: readonly Subject[],
+): TrialLessonFormInput {
+  if (!editing) return { subject: null, level: null, starts_at: null }
+  const subject = subjects.find(({ id }) => id === editing.subject.id)
+  let level: string | null = null
+  if (subject?.levels.some(({ code }) => code === editing.level.code)) {
+    level = editing.level.code
+  } else if (subject?.levels.length === 1) {
+    level = subject.levels[0].code
+  }
+  return {
+    subject: subject ? subject.id : null,
+    level,
+    starts_at: editing.starts_at,
+  }
+}
+
+// The lesson as just saved, from the values sent, so a page shown again
+// starts from it rather than from the lesson as first loaded
+function savedTrialLesson(
+  editing: ScheduleTrialLesson,
+  values: TrialLessonValues,
+  subjects: readonly Subject[],
+): ScheduleTrialLesson | undefined {
+  const subject = subjects.find(({ id }) => id === values.subject)
+  const level = subject?.levels.find(({ code }) => code === values.level)
+  if (!subject || !level) return undefined
+  return {
+    id: editing.id,
+    subject: {
+      id: subject.id,
+      name: subject.name,
+      slug: subject.slug,
+      levels: subject.levels.map(({ code, name }) => ({ code, name })),
+    },
+    level: { code: level.code, name: level.name },
+    starts_at: values.starts_at,
+    completed: editing.completed,
+  }
+}
+
 export function TrialLessonForm({
   subjects,
+  editing,
 }: {
   subjects: readonly Subject[]
+  // The trial lesson being edited (spec 29); booking when absent
+  editing?: ScheduleTrialLesson
 }) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const onBooked = useOnTrialBooked()
-  const schema = useMemo(() => trialLessonFormSchema(subjects), [subjects])
+  if (!editing && !onBooked) {
+    throw new Error("Booking a trial lesson needs TrialLessonBooking.")
+  }
+  // Its own hour stays selectable ("Yours") and exempt from the lead time
+  const ownStartsAt = editing?.starts_at
+  const schema = useMemo(
+    () => trialLessonFormSchema(subjects, { ownStartsAt }),
+    [subjects, ownStartsAt],
+  )
   const form = useForm<TrialLessonFormInput, unknown, TrialLessonValues>({
     resolver: zodResolver(schema),
-    defaultValues: { subject: null, level: null, starts_at: null },
+    defaultValues: prefill(editing, subjects),
   })
   const {
     control,
@@ -81,17 +150,27 @@ export function TrialLessonForm({
   const subjectId = useWatch({ control, name: "subject" })
   const subject = subjects.find(({ id }) => id === subjectId)
 
-  const { query: availability, slotAvailability } = useTrialAvailability()
+  const { query: availability, slotAvailability } = useTrialAvailability({
+    ownStartsAt,
+  })
 
+  const editingId = editing?.id
+  const labels = editingId === undefined ? LABELS.book : LABELS.edit
   const mutation = useMutation({
     mutationFn: (body: TrialLessonRequest) =>
-      studentFetch<unknown>("/api/student/trial-lessons", {
-        method: "POST",
-        body,
-      }),
+      editingId === undefined
+        ? studentFetch<unknown>("/api/student/trial-lessons", {
+            method: "POST",
+            body,
+          })
+        : studentFetch<unknown>(`/api/student/trial-lessons/${editingId}`, {
+            method: "PATCH",
+            body,
+          }),
   })
-  // A ref, since two quick clicks land before a re-render. On success the
-  // page swaps the form for the confirmation, so nothing here outlives it
+  // A ref, since two quick clicks land before a re-render. After a booking
+  // the page swaps the form for the confirmation; after an edit it stays
+  // true through the navigation to the dashboard
   const submitting = useRef(false)
   const pending = mutation.isPending || mutation.isSuccess
 
@@ -114,15 +193,43 @@ export function TrialLessonForm({
   )
 
   // `?subject=<slug>` from a subject page, once, after mount (the page is
-  // static). An unknown slug, or a subject already picked, changes nothing
+  // static). An unknown slug, or a subject already picked, changes nothing.
+  // Booking only
   const slug = useLocationSearch().get("subject")
   const preselected = useRef(false)
   useEffect(() => {
-    if (preselected.current || !slug) return
+    if (editingId !== undefined || preselected.current || !slug) return
     preselected.current = true
     const match = subjects.find((s) => s.slug === slug)
     if (match && getValues("subject") === null) selectSubject(match.id)
-  }, [slug, subjects, getValues, selectSubject])
+  }, [editingId, slug, subjects, getValues, selectSubject])
+
+  // The values of a successful edit, until the page is hidden. With Cache
+  // Components, Next keeps a page left behind in React's <Activity> and
+  // shows it again with its state, so without this a later visit would find
+  // the form still "Saving…" with the old values. Reset when the page is
+  // hidden, per node_modules/next/dist/docs/01-app/02-guides/
+  // preserving-ui-state.md. An unsaved draft is kept. Booking never sets
+  // it: the booking page resets itself (TrialLessonBooking)
+  const saved = useRef<TrialLessonValues | null>(null)
+  const { reset: resetMutation } = mutation
+  const { reset: resetForm } = form
+  useLayoutEffect(
+    () => () => {
+      const values = saved.current
+      if (!values || !editing) return
+      saved.current = null
+      submitting.current = false
+      resetMutation()
+      setSlotTaken(false)
+      const next = savedTrialLesson(editing, values, subjects)
+      // The edit page renders from this query, so `editing` (and the own
+      // hour) become the saved lesson too
+      if (next) queryClient.setQueryData(trialLessonQueryKey(next.id), next)
+      resetForm(prefill(next ?? editing, subjects))
+    },
+    [editing, subjects, queryClient, resetMutation, resetForm],
+  )
 
   // The picker only sends null when a refetch shows the selected hour as
   // taken. Not while saving: the lesson itself comes back as "mine"
@@ -163,6 +270,22 @@ export function TrialLessonForm({
       return
     }
 
+    if (editingId !== undefined) {
+      // Marked stale without refetching here, as in spec 26: a refetch now
+      // would show the saved hour as "mine" and flash the taken notice
+      for (const queryKey of [
+        scheduleQueryKey,
+        availabilityQueryKey,
+        trialLessonQueryKey(editingId),
+      ]) {
+        void queryClient.invalidateQueries({ queryKey, refetchType: "none" })
+      }
+      saved.current = values
+      toast.success(labels.done)
+      router.push("/dashboard")
+      return
+    }
+
     // The new lesson goes into the cached schedule, so a later visit shows
     // it at once rather than the form until the refetch lands
     const created = trialLessonSchema.safeParse(body)
@@ -181,13 +304,15 @@ export function TrialLessonForm({
       queryKey: availabilityQueryKey,
       refetchType: "none",
     })
-    toast.success("Trial lesson booked.")
+    toast.success(labels.done)
 
     // From the values sent, so the confirmation never depends on the body.
     // The schema has already checked the subject and level
     const chosen = subjects.find(({ id }) => id === values.subject)
     const level = chosen?.levels.find(({ code }) => code === values.level)
-    onBooked({
+    // The id, for the Edit link (spec 29), only comes from the body
+    onBooked?.({
+      id: created.success ? created.data.id : undefined,
       subject: { name: chosen?.name ?? "" },
       level: { name: level?.name ?? "" },
       starts_at: values.starts_at,
@@ -259,6 +384,7 @@ export function TrialLessonForm({
                   value={field.value}
                   onChange={handleSlotChange}
                   slotAvailability={slotAvailability}
+                  ownStartsAt={ownStartsAt}
                   disabled={pending}
                   aria-labelledby="starts_at-legend"
                   aria-describedby={
@@ -285,7 +411,7 @@ export function TrialLessonForm({
           disabled={pending}
           className="h-11 w-full text-base sm:w-auto sm:self-start sm:px-6"
         >
-          {pending ? "Booking…" : "Book free trial"}
+          {pending ? labels.pending : labels.submit}
         </Button>
       </div>
     </form>

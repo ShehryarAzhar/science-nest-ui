@@ -7,7 +7,8 @@ import { parseStartsAt, parseUtcTime, parseWeekday } from "@/lib/time-zone";
 
 // GET /schedule/ for Client Components (it fetches through studentFetch).
 // Booking, edit, delete and cancel (specs 25–31) invalidate scheduleQueryKey.
-// Also GET /classes/{id}/ for the edit page (spec 26)
+// Also GET /classes/{id}/ and GET /trial-lessons/{id}/ for the edit pages
+// (specs 26 and 29)
 
 // Checked here rather than at render: a TimeValueError thrown while
 // rendering would skip the page's error panel and reach app/error.tsx
@@ -61,6 +62,18 @@ export type ScheduleWeeklyClass = z.infer<typeof weeklyClassSchema>;
 export type ScheduleTrialLesson = z.infer<typeof trialLessonSchema>;
 export type Schedule = z.infer<typeof scheduleSchema>;
 
+// The backend's lock: completed (set in admin), or started. Edit and delete
+// then return 403, so no Edit link is offered and the edit page shows why
+export function isTrialLessonLocked(
+  trialLesson: Pick<ScheduleTrialLesson, "completed" | "starts_at">,
+  now: Date,
+) {
+  return (
+    trialLesson.completed ||
+    parseStartsAt(trialLesson.starts_at).getTime() <= now.getTime()
+  );
+}
+
 // GET /classes/{id}/ returns the weekly class fields without a price
 const weeklyClassDetailSchema = weeklyClassSchema.omit({ price: true });
 
@@ -106,6 +119,27 @@ export function weeklyClassQueryOptions(id: number) {
         signal,
       });
       const parsed = weeklyClassDetailSchema.safeParse(body);
+      if (!parsed.success) throw invalidResponse();
+      return parsed.data;
+    },
+  });
+}
+
+export function trialLessonQueryKey(id: number) {
+  return ["trial-lessons", id] as const;
+}
+
+// GET /trial-lessons/{id}/ returns the same fields as the schedule's
+// trial_lesson. A 404 (cancelled, or another student's) isn't retried
+export function trialLessonQueryOptions(id: number) {
+  return queryOptions({
+    queryKey: trialLessonQueryKey(id),
+    queryFn: async ({ signal }) => {
+      const body = await studentFetch<unknown>(
+        `/api/student/trial-lessons/${id}`,
+        { signal },
+      );
+      const parsed = trialLessonSchema.safeParse(body);
       if (!parsed.success) throw invalidResponse();
       return parsed.data;
     },
