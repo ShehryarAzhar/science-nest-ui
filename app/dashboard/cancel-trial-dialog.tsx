@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ import {
 } from "@/lib/schedule"
 import { StudentApiError, studentFetch } from "@/lib/student-api"
 import { formatTrialDateTime } from "@/lib/time-zone"
+import { TrialLockedNotice } from "./trial-lesson-card"
 
 // A 404 means the trial is already gone (cancelled in admin or another
 // tab): the same outcome for the student, so it isn't an error
@@ -41,7 +42,9 @@ async function cancelTrial(id: number): Promise<"cancelled" | "gone"> {
 
 // The dashboard's confirm dialog for the trial lesson (spec 30), built like
 // DeleteClassDialog. `target` stays set through the close animation so the
-// content doesn't empty while it fades; the parent clears it in onClosed
+// content doesn't empty while it fades; the parent clears it in onClosed. A
+// 403 means the trial is locked (spec 31): the lock notice replaces the
+// error, and only Close is left
 export function CancelTrialDialog({
   target,
   timeZone,
@@ -72,8 +75,16 @@ export function CancelTrialDialog({
     let outcome: "cancelled" | "gone"
     try {
       outcome = await mutation.mutateAsync(id)
-    } catch {
+    } catch (error) {
       cancelling.current = false
+      if (error instanceof StudentApiError && error.status === 403) {
+        // The card behind shows the lock once the refetch lands
+        void queryClient.invalidateQueries({ queryKey: scheduleQueryKey })
+        void queryClient.invalidateQueries({
+          queryKey: trialLessonQueryKey(id),
+          refetchType: "none",
+        })
+      }
       return
     }
 
@@ -97,11 +108,18 @@ export function CancelTrialDialog({
   }
 
   const error = mutation.error
-  const errorMessage = error
-    ? error instanceof StudentApiError
-      ? error.message
-      : GENERIC_ERROR_MESSAGE
-    : null
+  const locked = error instanceof StudentApiError && error.status === 403
+  const errorMessage =
+    error && !locked
+      ? error instanceof StudentApiError
+        ? error.message
+        : GENERIC_ERROR_MESSAGE
+      : null
+
+  // The confirm button that had focus is gone, so Close takes it
+  useEffect(() => {
+    if (locked) keepRef.current?.focus()
+  }, [locked])
 
   return (
     <Dialog
@@ -120,18 +138,26 @@ export function CancelTrialDialog({
       <DialogContent initialFocus={keepRef} finalFocus={finalFocus}>
         <DialogHeader>
           <DialogTitle>Cancel free trial?</DialogTitle>
-          <DialogDescription>
-            Its hour is released and this can&apos;t be undone. You can book
-            a new free trial later, at least 24 hours ahead, if a time is
-            still free.
-          </DialogDescription>
+          {/* Not once it's locked: the trial can no longer be cancelled */}
+          {!locked && (
+            <DialogDescription>
+              Its hour is released and this can&apos;t be undone. You can
+              book a new free trial later, at least 24 hours ahead, if a time
+              is still free.
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         {target && <TrialSummary trialLesson={target} timeZone={timeZone} />}
 
-        <div className="flex flex-col gap-4">
+        {/* Margins, not a gap: the notice's live region is always mounted */}
+        <div>
+          <TrialLockedNotice show={locked} className="mb-4" />
           {errorMessage && (
-            <p role="alert" className="whitespace-pre-line text-destructive">
+            <p
+              role="alert"
+              className="mb-4 whitespace-pre-line text-destructive"
+            >
               {errorMessage}
             </p>
           )}
@@ -141,16 +167,18 @@ export function CancelTrialDialog({
               disabled={pending}
               render={<Button variant="outline" size="lg" />}
             >
-              Keep trial lesson
+              {locked ? "Close" : "Keep trial lesson"}
             </DialogClose>
-            <Button
-              variant="destructive"
-              size="lg"
-              disabled={pending}
-              onClick={() => void confirm()}
-            >
-              {pending ? "Cancelling…" : "Cancel trial lesson"}
-            </Button>
+            {!locked && (
+              <Button
+                variant="destructive"
+                size="lg"
+                disabled={pending}
+                onClick={() => void confirm()}
+              >
+                {pending ? "Cancelling…" : "Cancel trial lesson"}
+              </Button>
+            )}
           </DialogFooter>
         </div>
       </DialogContent>

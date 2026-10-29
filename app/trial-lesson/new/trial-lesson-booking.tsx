@@ -16,7 +16,7 @@ import { SubjectsPanel } from "@/app/subjects/subjects-panel"
 import { routeActionClass } from "@/components/route-state"
 import { Button } from "@/components/ui/button"
 import {
-  isTrialLessonLocked,
+  trialLessonLockReason,
   scheduleQueryOptions,
   type ScheduleTrialLesson,
 } from "@/lib/schedule"
@@ -138,13 +138,14 @@ function ExistingTrial({
   timeZone: string
 }) {
   const [now] = useState(() => new Date())
-  const past = isTrialLessonLocked(trialLesson, now)
+  const lockReason = trialLessonLockReason(trialLesson, now)
   return (
     <TrialStatus
-      variant={past ? "past" : "upcoming"}
+      variant={lockReason ? "past" : "upcoming"}
       trialLesson={trialLesson}
       timeZone={timeZone}
       now={now}
+      lockReason={lockReason}
     />
   )
 }

@@ -62,16 +62,26 @@ export type ScheduleWeeklyClass = z.infer<typeof weeklyClassSchema>;
 export type ScheduleTrialLesson = z.infer<typeof trialLessonSchema>;
 export type Schedule = z.infer<typeof scheduleSchema>;
 
+export type TrialLockReason = "completed" | "started" | "past";
+
+// A trial lesson is always 60 minutes; the backend sends no ends_at
+const TRIAL_LESSON_MS = 60 * 60 * 1000;
+
 // The backend's lock: completed (set in admin), or started. Edit and delete
-// then return 403, so no Edit or Cancel is offered and the edit page shows why
-export function isTrialLessonLocked(
+// then return 403, so no Edit or Cancel is offered and the Free trial card
+// shows which one (spec 31). Completed wins; a lesson not marked completed
+// is "started" during its hour and "past" once it's over, which doesn't
+// claim it took place
+export function trialLessonLockReason(
   trialLesson: Pick<ScheduleTrialLesson, "completed" | "starts_at">,
   now: Date,
-) {
-  return (
-    trialLesson.completed ||
-    parseStartsAt(trialLesson.starts_at).getTime() <= now.getTime()
-  );
+): TrialLockReason | null {
+  if (trialLesson.completed) return "completed";
+  const startsMs = parseStartsAt(trialLesson.starts_at).getTime();
+  const nowMs = now.getTime();
+  if (startsMs + TRIAL_LESSON_MS <= nowMs) return "past";
+  if (startsMs <= nowMs) return "started";
+  return null;
 }
 
 // GET /classes/{id}/ returns the weekly class fields without a price

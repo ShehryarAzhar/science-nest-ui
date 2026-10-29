@@ -1,9 +1,17 @@
+"use client"
+
+import { useEffect, useRef } from "react"
 import Link from "next/link"
 import { LockIcon, SearchXIcon } from "lucide-react"
 
+import {
+  TrialLessonCard,
+  TrialLockedNotice,
+} from "@/app/dashboard/trial-lesson-card"
 import { SubjectsPanel } from "@/app/subjects/subjects-panel"
 import { routeActionClass } from "@/components/route-state"
 import { buttonVariants } from "@/components/ui/button"
+import type { ScheduleTrialLesson, TrialLockReason } from "@/lib/schedule"
 import { cn } from "@/lib/utils"
 
 // States shared by the trial lesson pages (specs 28 and 29)
@@ -46,17 +54,48 @@ export function TrialNotFound() {
   )
 }
 
-// Completed or already started, so the backend refuses edits. A plain
-// fact, not a warning: spec 31 owns the locked display
-export function TrialLocked() {
+// Completed or already started, so the backend refuses edits (spec 31).
+// The card shows the lock when the loaded data does. `refused`: a save the
+// backend just refused with a 403, which may come before the data shows it;
+// the lock notice then replaces the panel's line and the heading takes focus,
+// since the form it replaces is gone
+export function TrialLocked({
+  trialLesson,
+  timeZone,
+  lockReason,
+  refused,
+}: {
+  trialLesson: ScheduleTrialLesson
+  timeZone: string
+  lockReason: TrialLockReason | null
+  refused: boolean
+}) {
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (refused) headingRef.current?.focus()
+  }, [refused])
+
   return (
     <div className="max-w-4xl">
       <SubjectsPanel
         icon={<LockIcon aria-hidden className="size-5 shrink-0" />}
         heading="This trial lesson can no longer be changed"
+        headingRef={headingRef}
       >
-        <p>It has already started, or it has been marked as completed.</p>
+        {refused ? (
+          <TrialLockedNotice show className="mt-2" />
+        ) : (
+          <p>It has already started, or it has been marked as completed.</p>
+        )}
       </SubjectsPanel>
+      <div className="mt-6">
+        <TrialLessonCard
+          trialLesson={trialLesson}
+          timeZone={timeZone}
+          headingLevel="h3"
+          lockReason={lockReason}
+        />
+      </div>
       <DashboardLink />
     </div>
   )

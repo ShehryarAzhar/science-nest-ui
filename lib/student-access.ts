@@ -15,8 +15,8 @@ export function isSessionError(error: unknown): boolean {
 }
 
 // A logged-in account with no Student profile (admin or staff). Only a read
-// counts: a 403 from PATCH or DELETE is a locked trial lesson (spec 31) and
-// goes to the form. The server ApiError has no method, and only Server
+// counts: a 403 from PATCH or DELETE is a locked trial lesson, shown as the
+// lock notice (spec 31). The server ApiError has no method, and only Server
 // Components (which only read) pass it here; server actions use
 // normalizeApiError() instead
 export function isNoStudentProfileError(error: unknown): boolean {
